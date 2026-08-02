@@ -35,3 +35,4 @@ yarn-error.log*
 # system files
 .DS_Store
 *.pem
+.env*
