@@ -533,6 +533,8 @@ model WhatsAppAccount {
   webhookUrl     String?  @db.Text
   autoReply      Boolean  @default(true)
   businessParsing Boolean @default(true) // Auto parse business ops like "sold 5 bags"
+  ownerPhoneNumbers String? @db.Text // JSON array of owner numbers that can do business ops via WhatsApp, e.g. ["2349032673458","2348012345678"]
+  supportMode    String   @default("AI") @db.VarChar(20) // AI, HUMAN, HYBRID - how to handle customer inquiries
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 }

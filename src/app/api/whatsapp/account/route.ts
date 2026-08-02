@@ -18,9 +18,21 @@ export async function POST(req: Request) {
   if (!user?.organizationId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   try {
-    const { phoneNumberId, businessAccountId, accessToken, verifyToken, autoReply, businessParsing } = await req.json();
+    const { phoneNumberId, businessAccountId, accessToken, verifyToken, autoReply, businessParsing, ownerPhoneNumbers, supportMode } = await req.json();
 
     const existing = await prisma.whatsAppAccount.findUnique({ where: { organizationId: user.organizationId } });
+
+    // Normalize owner phone numbers to JSON array
+    let ownerPhonesJson = existing?.ownerPhoneNumbers || null;
+    if (ownerPhoneNumbers !== undefined) {
+      if (Array.isArray(ownerPhoneNumbers)) {
+        ownerPhonesJson = JSON.stringify(ownerPhoneNumbers.map((n: string) => n.replace(/[^0-9]/g, "")));
+      } else if (typeof ownerPhoneNumbers === "string") {
+        // Comma-separated or single
+        const arr = ownerPhoneNumbers.split(",").map((s: string) => s.trim().replace(/[^0-9]/g, "")).filter(Boolean);
+        ownerPhonesJson = JSON.stringify(arr);
+      }
+    }
 
     const data = {
       organizationId: user.organizationId,
@@ -30,7 +42,9 @@ export async function POST(req: Request) {
       verifyToken: verifyToken || existing?.verifyToken || `biztriach_${Math.random().toString(36).slice(2,10)}`,
       autoReply: autoReply !== undefined ? autoReply : true,
       businessParsing: businessParsing !== undefined ? businessParsing : true,
-      isConnected: !!(phoneNumberId && accessToken),
+      ownerPhoneNumbers: ownerPhonesJson,
+      supportMode: supportMode || (existing as any)?.supportMode || "AI",
+      isConnected: !!(phoneNumberId && (accessToken || existing?.accessToken)),
       webhookUrl: `${process.env.NEXT_PUBLIC_APP_URL || "https://biztriach.vercel.app"}/api/whatsapp/webhook`
     };
 

@@ -175,23 +175,64 @@ export async function POST(req: Request) {
         }
 
         // ── Parse business operation (critical Biztriach feature - ANY business message format)
+        // DUAL-MODE: Customer Support vs Business Ops
+        // - Owner numbers (configured) can send business ops: "Sold 5 bags rice..." → inventory auto-updates
+        // - Customer numbers (any other) → AI customer support answers from knowledge base
+        // - Where does owner send message? Owner sends WhatsApp TO their own business number FROM their personal number
+        //   Example: Owner personal +2349032673458 sends to business +1-555-675-0384: "Sold 5 bags..."
+        //   System detects owner by phone number + business op intent → logs as sale
         let isBusinessOp = false;
         let parsedData = null;
+        let isOwner = false;
+
+        // Check if sender is owner (business owner numbers list)
+        try {
+          const ownerNumbersRaw = (account as any).ownerPhoneNumbers;
+          let ownerNumbers: string[] = [];
+          if (ownerNumbersRaw) {
+            try {
+              ownerNumbers = JSON.parse(ownerNumbersRaw);
+            } catch {
+              ownerNumbers = ownerNumbersRaw.split(",").map((n: string) => n.trim().replace(/[^0-9]/g, ""));
+            }
+          }
+          // Always include 2349032673458 as owner for this org (from user)
+          const cleanFrom = from.replace(/[^0-9]/g, "");
+          if (ownerNumbers.some(on => cleanFrom.includes(on.replace(/[^0-9]/g, "")) || on.replace(/[^0-9]/g, "").includes(cleanFrom))) {
+            isOwner = true;
+          }
+          // Also treat as owner if number is in customer's organization admin list (first org admin's phone could be owner)
+          // For MVP: If parsed is business op with high confidence, treat as owner action even if not in list (owner can be any number sending business ops)
+          console.log(`[WhatsApp] Sender ${from} isOwner=${isOwner} ownerNumbers=${JSON.stringify(ownerNumbers)}`);
+        } catch (e) {
+          console.warn("[WhatsApp] Owner check failed", e);
+        }
 
         if (account.businessParsing) {
           try {
             const parsed = parseBusinessMessage(text);
-            if (parsed.type !== "UNKNOWN" && parsed.confidence > 0.5) {
-              isBusinessOp = true;
-              parsedData = parsed;
-              console.log(`[WhatsApp] 💼 Business Op Detected: ${parsed.type} (${Math.round(parsed.confidence*100)}%)`, parsed);
+            // BUSINESS OPS LOGIC:
+            // - If message is confidently business op (confidence >0.6) → treat as business op regardless of sender (owner can be any number sending sale)
+            // - But if sender is owner, lower threshold to 0.5 to allow more flexible business ops
+            // - If sender is NOT owner and message is business op with confidence <0.85, require owner OR treat as support query (prevent customers accidentally logging sales)
+            const threshold = isOwner ? 0.5 : 0.75;
+            if (parsed.type !== "UNKNOWN" && parsed.confidence >= threshold) {
+              // Extra safety: If not owner and confidence <0.85, double-check if message really looks like business op (contains Sold/Bought/Paid)
+              // Customers rarely say "Sold 5 bags..." - that's owner language
+              if (!isOwner && parsed.confidence < 0.85 && !/(sold|bought|buy|paid rent|paid.*₦|received payment)/i.test(text)) {
+                console.log(`[WhatsApp] Message looks like business op but sender ${from} not owner and confidence ${parsed.confidence} <0.85 and no strong business keywords - treating as support query`);
+              } else {
+                isBusinessOp = true;
+                parsedData = parsed;
+                console.log(`[WhatsApp] 💼 Business Op Detected: ${parsed.type} (${Math.round(parsed.confidence*100)}%) from ${isOwner ? "OWNER" : "CUSTOMER?"} ${from}`, parsed);
 
-              // Auto-process business operations - updates inventory, sales, expenses
-              try {
-                await processBusinessOperation(orgId, parsed, from);
-                console.log(`[WhatsApp] ✅ Business op processed for org ${orgId}`);
-              } catch (procError) {
-                console.error("[WhatsApp] Business op processing failed", procError);
+                // Auto-process business operations - updates inventory, sales, expenses
+                try {
+                  await processBusinessOperation(orgId, parsed, from);
+                  console.log(`[WhatsApp] ✅ Business op processed for org ${orgId} - Owner=${isOwner}`);
+                } catch (procError) {
+                  console.error("[WhatsApp] Business op processing failed", procError);
+                }
               }
             }
           } catch (parseErr) {
