@@ -1,303 +1,326 @@
 import { PdfReader } from "pdfreader";
 import mammoth from "mammoth";
 
-// 1. TEXT EXTRACTORS
+// Biztriach RAG Engine v2 - Production Ready
+
+const VECTOR_DIM = 384;
+const CHUNK_SIZE = 1000;
+const CHUNK_OVERLAP = 200;
+
 export async function extractTextFromFile(buffer: Buffer, fileType: string): Promise<string> {
   const type = fileType.toLowerCase();
-  
+
   if (type === "txt" || type === "md" || type === "markdown") {
     return buffer.toString("utf-8");
   }
-  
+
   if (type === "pdf") {
     try {
-      return new Promise<string>((resolve, reject) => {
+      // @ts-ignore - pdf-parse dynamic
+      const pdfParseModule = await import("pdf-parse");
+      const pdfParse = (pdfParseModule as any).default || pdfParseModule;
+      const data = await pdfParse(buffer);
+      if (data.text && data.text.trim().length > 50) {
+        return data.text;
+      }
+    } catch (e) {
+      console.warn("[RAG] pdf-parse fallback", (e as Error).message);
+    }
+
+    try {
+      return await new Promise<string>((resolve, reject) => {
         let text = "";
         let page = 1;
         new PdfReader({}).parseBuffer(buffer, (err: any, item: any) => {
           if (err) {
-            console.error("PdfReader error:", err);
-            reject(new Error("Failed to extract text from PDF document"));
+            reject(new Error(`PDF extraction failed: ${err.message}`));
           } else if (!item) {
-            resolve(text);
+            if (text.trim().length === 0) {
+              reject(new Error("PDF contains no extractable text"));
+            } else {
+              resolve(text);
+            }
           } else if (item.text) {
             text += item.text + " ";
           } else if (item.page) {
-            text += `\n[Page ${page}]\n`;
+            text += `\n\n[Page ${page}]\n`;
             page++;
           }
         });
       });
     } catch (error) {
-      console.error("Error parsing PDF with pdfreader:", error);
-      throw new Error("Failed to extract text from PDF document");
+      console.error("PDF extraction failed:", error);
+      throw new Error("Failed to extract text from PDF. Try DOCX or TXT.");
     }
   }
-  
+
   if (type === "docx") {
     try {
       const result = await mammoth.extractRawText({ buffer });
-      return result.value || "";
+      if (!result.value || result.value.trim().length < 10) {
+        throw new Error("DOCX appears empty");
+      }
+      return result.value;
     } catch (error) {
-      console.error("Error parsing DOCX:", error);
-      throw new Error("Failed to extract text from DOCX document");
+      console.error("DOCX parsing error:", error);
+      throw new Error("Failed to extract DOCX content");
     }
   }
-  
-  throw new Error(`Unsupported file type: ${fileType}`);
+
+  throw new Error(`Unsupported file type: ${fileType}. Allowed: pdf, docx, txt, md`);
 }
 
-// 2. RECURSIVE TEXT SPLITTER
-interface ChunkOptions {
-  chunkSize?: number;
-  chunkOverlap?: number;
+interface Chunk {
+  content: string;
+  pageNumber: number;
 }
 
-export function splitTextIntoChunks(text: string, options: ChunkOptions = {}): { content: string; pageNumber: number }[] {
-  const chunkSize = options.chunkSize || 800;
-  const chunkOverlap = options.chunkOverlap || 150;
-  
-  // Clean text a bit
-  const cleanedText = text.replace(/\r\n/g, "\n").replace(/\n{3,}/g, "\n\n");
-  
-  const chunks: { content: string; pageNumber: number }[] = [];
-  let currentIndex = 0;
-  let iterations = 0;
-  const MAX_ITERATIONS = 10000;
+export function splitTextIntoChunks(text: string, options: { chunkSize?: number; chunkOverlap?: number } = {}): Chunk[] {
+  const chunkSize = options.chunkSize || CHUNK_SIZE;
+  const chunkOverlap = options.chunkOverlap || CHUNK_OVERLAP;
 
-  // Simple page detector based on form-feed characters or common page markers
-  const pageBreaks = Array.from(cleanedText.matchAll(/\f|\[Page \d+\]/gi));
-  
-  function getPageNumber(charIndex: number): number {
+  const cleaned = text.replace(/\r\n/g, "\n").replace(/\r/g, "\n").replace(/\u0000/g, "").replace(/\n{3,}/g, "\n\n").trim();
+  if (cleaned.length === 0) return [];
+
+  const pageRegex = /\[Page (\d+)\]|\f/g;
+  const pageBreaks: { index: number; page: number }[] = [];
+  let match;
+  let currentPage = 1;
+  while ((match = pageRegex.exec(cleaned)) !== null) {
+    if (match[1]) currentPage = parseInt(match[1], 10);
+    else currentPage++;
+    pageBreaks.push({ index: match.index, page: currentPage });
+  }
+
+  const getPage = (charIndex: number): number => {
     let page = 1;
     for (const pb of pageBreaks) {
-      if (pb.index !== undefined && pb.index <= charIndex) {
-        page++;
-      } else {
-        break;
-      }
+      if (pb.index <= charIndex) page = pb.page;
+      else break;
     }
     return page;
-  }
-  
-  while (currentIndex < cleanedText.length) {
+  };
+
+  const chunks: Chunk[] = [];
+  let start = 0;
+  let iterations = 0;
+
+  while (start < cleaned.length) {
     iterations++;
-    if (iterations > MAX_ITERATIONS) {
-      throw new Error("Chunk splitter exceeded maximum iterations of 10,000");
+    if (iterations > 15000) throw new Error("Chunker exceeded 15k iterations");
+
+    let end = Math.min(start + chunkSize, cleaned.length);
+
+    if (end < cleaned.length) {
+      const lookahead = cleaned.substring(start, Math.min(end + 200, cleaned.length));
+      const paragraphBreak = lookahead.lastIndexOf("\n\n", chunkSize);
+      const newlineBreak = lookahead.lastIndexOf("\n", chunkSize);
+      const spaceBreak = lookahead.lastIndexOf(" ", chunkSize);
+
+      if (paragraphBreak > chunkSize * 0.5) end = start + paragraphBreak + 2;
+      else if (newlineBreak > chunkSize * 0.6) end = start + newlineBreak + 1;
+      else if (spaceBreak > chunkSize * 0.5) end = start + spaceBreak;
     }
 
-    let endIndex = currentIndex + chunkSize;
-    
-    if (endIndex >= cleanedText.length) {
-      endIndex = cleanedText.length;
-    } else {
-      // Try to find a good breaking point (like double newline, newline, space)
-      const subString = cleanedText.substring(currentIndex, endIndex + 100);
-      const doubleNewlineIdx = subString.indexOf("\n\n", chunkSize - 100);
-      const newlineIdx = subString.indexOf("\n", chunkSize - 100);
-      const spaceIdx = subString.indexOf(" ", chunkSize - 50);
-      
-      if (doubleNewlineIdx !== -1 && doubleNewlineIdx < chunkSize + 100) {
-        endIndex = currentIndex + doubleNewlineIdx;
-      } else if (newlineIdx !== -1 && newlineIdx < chunkSize + 80) {
-        endIndex = currentIndex + newlineIdx;
-      } else if (spaceIdx !== -1 && spaceIdx < chunkSize + 50) {
-        endIndex = currentIndex + spaceIdx;
-      }
+    const content = cleaned.substring(start, end).trim();
+    if (content.length > 30) {
+      chunks.push({ content, pageNumber: getPage(start) });
     }
-    
-    const chunkText = cleanedText.substring(currentIndex, endIndex).trim();
-    if (chunkText.length > 10) {
-      chunks.push({
-        content: chunkText,
-        pageNumber: getPageNumber(currentIndex),
-      });
-    }
-    
-    // If we reached the end of the text, terminate the loop immediately
-    if (endIndex >= cleanedText.length) {
-      break;
-    }
-    
-    // Force index advancement by at least 1 character to avoid infinite loop
-    const nextIndex = endIndex - chunkOverlap;
-    if (nextIndex <= currentIndex) {
-      currentIndex = currentIndex + 1;
-    } else {
-      currentIndex = nextIndex;
-    }
+
+    if (end >= cleaned.length) break;
+    start = Math.max(start + 1, end - chunkOverlap);
   }
-  
+
   return chunks;
 }
 
-// 3. VECTOR EMBEDDINGS (Dual Mode: API / Deterministic Vector Space Hash)
-const VECTOR_DIMENSION = 384;
-
-export async function generateEmbedding(text: string): Promise<number[]> {
+export async function generateEmbedding(text: string, retry = 2): Promise<number[]> {
   const apiKey = process.env.OPENROUTER_API_KEY;
-  
+  const trimmed = text.slice(0, 8000);
+
   if (apiKey && apiKey.trim() !== "") {
+    for (let attempt = 0; attempt <= retry; attempt++) {
+      try {
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 15000);
+
+        const response = await fetch("https://openrouter.ai/api/v1/embeddings", {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${apiKey}`,
+            "Content-Type": "application/json",
+            "HTTP-Referer": "https://biztriach.vercel.app",
+          },
+          body: JSON.stringify({
+            model: "cohere/embed-english-v3.0",
+            input: [trimmed],
+          }),
+          signal: controller.signal,
+        });
+        clearTimeout(timeout);
+
+        if (response.ok) {
+          const data = await response.json();
+          if (data.data?.[0]?.embedding) return data.data[0].embedding;
+        } else if (response.status === 429 && attempt < retry) {
+          await sleep(1000 * (attempt + 1));
+          continue;
+        }
+      } catch (e) {
+        if (attempt < retry) await sleep(500 * (attempt + 1));
+      }
+    }
+  }
+
+  return generateLocalEmbedding(trimmed);
+}
+
+export async function generateEmbeddingsBatch(texts: string[], concurrent = 5): Promise<number[][]> {
+  const apiKey = process.env.OPENROUTER_API_KEY;
+
+  if (apiKey && apiKey.trim() !== "" && texts.length > 0) {
     try {
-      // In production, we make a POST request to OpenRouter or Cohere/OpenAI.
-      // E.g. using Cohere's embed model: "cohere/embed-english-v3.0"
       const response = await fetch("https://openrouter.ai/api/v1/embeddings", {
         method: "POST",
         headers: {
-          "Authorization": `Bearer ${apiKey}`,
+          Authorization: `Bearer ${apiKey}`,
           "Content-Type": "application/json",
+          "HTTP-Referer": "https://biztriach.vercel.app",
         },
         body: JSON.stringify({
           model: "cohere/embed-english-v3.0",
-          input: [text],
+          input: texts.map(t => t.slice(0, 8000)),
         }),
       });
-      
+
       if (response.ok) {
         const data = await response.json();
-        if (data.data && data.data[0] && data.data[0].embedding) {
-          return data.data[0].embedding;
+        if (data.data && Array.isArray(data.data) && data.data.length === texts.length) {
+          return data.data.map((item: any) => item.embedding);
         }
       }
-      console.warn("Embeddings API request failed, falling back to simulated semantic vector.");
     } catch (e) {
-      console.error("Error generating API embedding:", e);
+      console.warn("[RAG] Batch API failed, concurrent fallback");
     }
+
+    const results: number[][] = [];
+    for (let i = 0; i < texts.length; i += concurrent) {
+      const batch = texts.slice(i, i + concurrent);
+      const batchEmbeds = await Promise.all(batch.map(t => generateEmbedding(t, 1)));
+      results.push(...batchEmbeds);
+    }
+    return results;
   }
-  
-  // Local fallback
-  return generateLocalEmbedding(text);
+
+  return texts.map(t => generateLocalEmbedding(t));
 }
 
-// Local fallback execution logic (decoupled for batch calls)
 function generateLocalEmbedding(text: string): number[] {
-  const vector = new Array(VECTOR_DIMENSION).fill(0);
-  const words = text
-    .toLowerCase()
-    .replace(/[^\w\s]/g, "")
-    .split(/\s+/)
-    .filter(w => w.length > 2);
-    
+  const vector = new Array(VECTOR_DIM).fill(0);
+  const cleaned = text.toLowerCase().replace(/[^a-z0-9\s]/g, " ");
+  const words = cleaned.split(/\s+/).filter(w => w.length > 2);
+  const bigrams = [];
+  for (let i = 0; i < words.length - 1; i++) bigrams.push(words[i] + "_" + words[i + 1]);
+
   if (words.length === 0) {
-    vector[0] = 1.0;
+    vector[0] = 1;
     return vector;
   }
-  
-  const hashString = (str: string): number => {
-    let hash = 17;
+
+  const hash = (str: string): number => {
+    let h = 2166136261;
     for (let i = 0; i < str.length; i++) {
-      hash = (hash * 31 + str.charCodeAt(i)) | 0;
+      h ^= str.charCodeAt(i);
+      h = Math.imul(h, 16777619);
     }
-    return Math.abs(hash);
+    return Math.abs(h);
   };
-  
-  for (const word of words) {
-    const idx1 = hashString(word) % VECTOR_DIMENSION;
-    const idx2 = hashString(word + "_2") % VECTOR_DIMENSION;
-    vector[idx1] += 1.0;
-    vector[idx2] += 0.5;
+
+  for (const w of words) {
+    const idx = hash(w) % VECTOR_DIM;
+    const idx2 = hash(w + "_salt") % VECTOR_DIM;
+    vector[idx] += 1.0;
+    vector[idx2] += 0.6;
   }
-  
-  let sumSq = 0;
-  for (let i = 0; i < VECTOR_DIMENSION; i++) {
-    sumSq += vector[i] * vector[i];
+  for (const bg of bigrams) {
+    const idx = hash(bg) % VECTOR_DIM;
+    vector[idx] += 0.7;
   }
-  const norm = Math.sqrt(sumSq);
+
+  const norm = Math.sqrt(vector.reduce((s, v) => s + v * v, 0));
   if (norm > 0) {
-    for (let i = 0; i < VECTOR_DIMENSION; i++) {
-      vector[i] /= norm;
-    }
-  } else {
-    vector[0] = 1.0;
+    for (let i = 0; i < VECTOR_DIM; i++) vector[i] /= norm;
   }
   return vector;
 }
 
-export async function generateEmbeddingsBatch(texts: string[]): Promise<number[][]> {
-  const apiKey = process.env.OPENROUTER_API_KEY;
-  
-  if (apiKey && apiKey.trim() !== "") {
-    try {
-      const response = await fetch("https://openrouter.ai/api/v1/embeddings", {
-        method: "POST",
-        headers: {
-          "Authorization": `Bearer ${apiKey}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          model: "cohere/embed-english-v3.0",
-          input: texts,
-        }),
-      });
-      
-      if (response.ok) {
-        const data = await response.json();
-        if (data.data && Array.isArray(data.data)) {
-          // OpenRouter/OpenAI return format matches [{ embedding: [...] }, ...]
-          return data.data.map((item: any) => item.embedding);
-        }
-      }
-      console.warn("Batch embeddings API request failed, falling back to local vectorizer.");
-    } catch (e) {
-      console.error("Error generating API embeddings batch:", e);
-    }
-  }
-  
-  // Fallback to local vectorizer for each chunk
-  return texts.map(text => generateLocalEmbedding(text));
+function sleep(ms: number) {
+  return new Promise(r => setTimeout(r, ms));
 }
 
-// 4. COSINE SIMILARITY ENGINE
-export function cosineSimilarity(vecA: number[], vecB: number[]): number {
-  if (vecA.length !== vecB.length) return 0;
-  
-  let dotProduct = 0;
-  let normA = 0;
-  let normB = 0;
-  
-  for (let i = 0; i < vecA.length; i++) {
-    dotProduct += vecA[i] * vecB[i];
-    normA += vecA[i] * vecA[i];
-    normB += vecB[i] * vecB[i];
+export function cosineSimilarity(a: number[], b: number[]): number {
+  if (a.length !== b.length) return 0;
+  let dot = 0, na = 0, nb = 0;
+  for (let i = 0; i < a.length; i++) {
+    dot += a[i] * b[i];
+    na += a[i] * a[i];
+    nb += b[i] * b[i];
   }
-  
-  if (normA === 0 || normB === 0) return 0;
-  return dotProduct / (Math.sqrt(normA) * Math.sqrt(normB));
+  if (na === 0 || nb === 0) return 0;
+  return dot / (Math.sqrt(na) * Math.sqrt(nb));
 }
 
-// 5. RETRIEVAL PIPELINE
+function keywordScore(query: string, content: string): number {
+  const qWords = query.toLowerCase().split(/\s+/).filter(w => w.length > 2);
+  const cLower = content.toLowerCase();
+  if (qWords.length === 0) return 0;
+  let matches = 0;
+  for (const qw of qWords) if (cLower.includes(qw)) matches++;
+  return matches / qWords.length;
+}
+
 export interface DocumentSource {
   documentTitle: string;
+  documentId: string;
   pageNumber: number;
   content: string;
   score: number;
+  keywordScore: number;
+  hybridScore: number;
 }
 
 export function retrieveRelevantChunks(
   queryVector: number[],
-  dbChunks: { content: string; pageNumber: number; embedding: string; document: { title: string } }[],
+  queryText: string,
+  dbChunks: { content: string; pageNumber: number; embedding: string; document: { title: string; id: string } }[],
   topK = 4
 ): DocumentSource[] {
-  const scoredChunks = dbChunks.map((chunk) => {
-    let chunkVector: number[];
+  const scored = dbChunks.map(chunk => {
+    let vec: number[];
     try {
-      chunkVector = JSON.parse(chunk.embedding);
-    } catch (e) {
-      chunkVector = new Array(VECTOR_DIMENSION).fill(0);
+      vec = JSON.parse(chunk.embedding);
+      if (!Array.isArray(vec)) vec = new Array(VECTOR_DIM).fill(0);
+    } catch {
+      vec = new Array(VECTOR_DIM).fill(0);
     }
-    
-    const score = cosineSimilarity(queryVector, chunkVector);
+
+    const semantic = cosineSimilarity(queryVector, vec);
+    const kw = keywordScore(queryText, chunk.content);
+    const hybrid = semantic * 0.75 + kw * 0.25 + (kw > 0.6 ? 0.1 : 0);
+
     return {
       documentTitle: chunk.document.title,
+      documentId: chunk.document.id,
       pageNumber: chunk.pageNumber,
       content: chunk.content,
-      score,
+      score: semantic,
+      keywordScore: kw,
+      hybridScore: hybrid,
     };
   });
-  
-  // Sort descending by score, filter out very low similarity matches, and slice topK
-  return scoredChunks
-    .sort((a, b) => b.score - a.score)
-    .filter(chunk => chunk.score > 0.05) // Threshold
+
+  return scored
+    .sort((a, b) => b.hybridScore - a.hybridScore)
+    .filter(c => c.hybridScore > 0.08)
     .slice(0, topK);
 }

@@ -7,110 +7,598 @@ generator client {
   provider = "prisma-client-js"
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// BILLING & USER MANAGEMENT - Manual Approval MVP
+// ─────────────────────────────────────────────────────────────────────────────
+
 model User {
-  id             String        @id @default(uuid())
-  name           String
-  email          String        @unique
-  password       String
-  organizationId String?
-  organization   Organization? @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  createdAt      DateTime      @default(now())
-  updatedAt      DateTime      @updatedAt
+  id               String    @id @default(uuid())
+  name             String    @db.VarChar(120)
+  email            String    @unique @db.VarChar(200)
+  password         String
+  role             String    @default("USER") @db.VarChar(20) // USER, ADMIN
+  status           String    @default("PENDING") @db.VarChar(20) // PENDING, APPROVED, SUSPENDED, REJECTED
+  organizationId   String?
+  organization     Organization? @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  approvedAt       DateTime?
+  approvedBy       String? // admin user id
+  suspendedReason  String?   @db.Text
+  lastLoginAt      DateTime?
+  apiKeyPreference String    @default("PLATFORM") @db.VarChar(20) // PLATFORM, BYOK
+
+  // BYOK - Encrypted storage
+  openaiApiKey     String?   @db.Text
+  openrouterApiKey String?   @db.Text
+  geminiApiKey     String?   @db.Text
+  claudeApiKey     String?   @db.Text
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([organizationId])
+  @@index([email])
+  @@index([status])
+  @@index([role])
 }
 
 model Organization {
-  id        String    @id @default(uuid())
-  name      String
-  users     User[]
-  chatbots  Chatbot[]
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
+  id          String   @id @default(uuid())
+  name        String   @db.VarChar(200)
+  slug        String?  @unique @db.VarChar(100)
+  users       User[]
+  chatbots    Chatbot[]
+  businessProfile BusinessProfile?
+  products    Product[]
+  categories  ProductCategory[]
+  customers   Customer[]
+  sales       Sale[]
+  expenses    Expense[]
+  expenseCategories ExpenseCategory[]
+  leads       Lead[]
+  landingPages LandingPage[]
+  funnels     Funnel[]
+  emailCampaigns EmailCampaign[]
+  whatsappAccount WhatsAppAccount?
+  websiteSources WebsiteSource[]
+  apiKeys     ApiKey[]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 }
 
+model BusinessProfile {
+  id             String   @id @default(uuid())
+  organizationId String   @unique
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  businessName   String   @db.VarChar(200)
+  industry       String   @db.VarChar(100) // supermarket, restaurant, real_estate, etc
+  description    String   @db.Text
+  website        String?  @db.VarChar(500)
+  tone           String   @default("professional") @db.VarChar(30) // professional, friendly, formal, warm, etc
+  brandVoice     String   @default("knowledgeable, trustworthy") @db.VarChar(200)
+  formality      String   @default("balanced") @db.VarChar(20) // casual, balanced, formal
+  greetingStyle  String   @default("Hello! How can I help you today?") @db.VarChar(500)
+  language       String   @default("en") @db.VarChar(10)
+  logo           String?  @db.Text
+  address        String?  @db.Text
+  phone          String?  @db.VarChar(50)
+  escalationEmail String? @db.VarChar(200)
+  enableInternetKnowledge Boolean @default(false)
+  enableWebsiteCrawl Boolean @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// AI AGENT (Keep Chatbot for backward compat, enhance)
+// ─────────────────────────────────────────────────────────────────────────────
+
 model Chatbot {
-  id              String         @id @default(uuid())
-  name            String
+  id              String   @id @default(uuid())
+  name            String   @db.VarChar(120)
   organizationId  String
-  organization    Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  instructions    String
-  greetingMessage String         @default("Hello! How can I help you today?")
-  themeColor      String         @default("#2563eb") // Primary brand color
-  suggestions     String         @default("[\"What is SupportIQ AI?\", \"How do I upload documents?\"]") // JSON string of suggested questions
+  organization    Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  instructions    String   @db.Text
+  greetingMessage String   @default("Hello! How can I help you today?") @db.VarChar(600)
+  themeColor      String   @default("#7c3aed") @db.VarChar(20)
+  suggestions     String   @default("[\"What is Biztriach?\", \"How can you help my business?\"]") @db.Text
+  personality     String?  @db.Text // JSON: tone, style, examples
+  welcomeDelayMs  Int      @default(2500)
+  enableSound     Boolean  @default(true)
+  enableCsat      Boolean  @default(true)
+  enableHumanTakeover Boolean @default(true)
+  deploymentChannels String @default("[\"website\"]") @db.Text // ["website","whatsapp","instagram"]
   documents       Document[]
   conversations   Conversation[]
   analytics       Analytics[]
-  createdAt       DateTime       @default(now())
-  updatedAt       DateTime       @updatedAt
+  knowledgeGaps   KnowledgeGap[]
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
 
   @@index([organizationId])
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// KNOWLEDGE ENGINE 2.0 - Multi-source
+// ─────────────────────────────────────────────────────────────────────────────
+
 model Document {
-  id         String          @id @default(uuid())
-  title      String
-  chatbotId  String
-  chatbot    Chatbot         @relation(fields: [chatbotId], references: [id], onDelete: Cascade)
-  fileType   String          // "pdf" | "docx" | "txt" | "md"
-  status     String          // "PENDING" | "PROCESSING" | "TRAINED" | "FAILED"
-  size       Int
-  chunks     DocumentChunk[]
-  createdAt  DateTime        @default(now())
-  updatedAt  DateTime        @updatedAt
+  id          String   @id @default(uuid())
+  title       String   @db.VarChar(300)
+  chatbotId   String?  
+  chatbot     Chatbot? @relation(fields: [chatbotId], references: [id], onDelete: Cascade)
+  organizationId String? @db.VarChar(100) // For org-wide knowledge
+  fileType    String   @db.VarChar(30) // pdf, docx, xlsx, pptx, csv, txt, md, image, url
+  status      String   @default("PENDING") @db.VarChar(20)
+  size        Int      @default(0)
+  chunkCount  Int      @default(0)
+  sourceType  String   @default("upload") @db.VarChar(30) // upload, website, whatsapp, manual
+  sourceUrl   String?  @db.Text
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  chunks      DocumentChunk[]
 
   @@index([chatbotId])
+  @@index([organizationId])
+  @@index([status])
+  @@index([sourceType])
 }
 
 model DocumentChunk {
   id         String   @id @default(uuid())
   documentId String
   document   Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
-  content    String
+  content    String   @db.Text
   pageNumber Int      @default(1)
-  embedding  String   // JSON stringified array of floats (e.g. [0.12, -0.45, ...])
+  embedding  String   @db.Text // JSON array 384 floats
+  tokenCount Int      @default(0)
   createdAt  DateTime @default(now())
 
   @@index([documentId])
 }
 
-model Conversation {
-  id        String    @id @default(uuid())
-  chatbotId String
-  chatbot   Chatbot   @relation(fields: [chatbotId], references: [id], onDelete: Cascade)
-  visitorId String    // Unique tracking ID for the website visitor
-  status    String    @default("ACTIVE") // "ACTIVE" | "CLOSED" | "PAUSED" (human takeover)
-  messages  Message[]
-  rating    Int?      // Optional visitor rating (1-5)
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
+model WebsiteSource {
+  id             String   @id @default(uuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  url            String   @db.Text
+  includePaths   String?  @db.Text // JSON array
+  excludePaths   String?  @db.Text
+  status         String   @default("PENDING") @db.VarChar(20) // PENDING, CRAWLING, TRAINED, FAILED
+  pagesCrawled   Int      @default(0)
+  lastSyncedAt   DateTime?
+  autoSync       Boolean  @default(false)
+  syncInterval   String?  @db.VarChar(20) // daily, weekly
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([organizationId])
+  @@index([status])
+}
+
+model KnowledgeGap {
+  id          String   @id @default(uuid())
+  chatbotId   String
+  chatbot     Chatbot  @relation(fields: [chatbotId], references: [id], onDelete: Cascade)
+  question    String   @db.Text
+  frequency   Int      @default(1)
+  lastSeenAt  DateTime @default(now())
+  isResolved  Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
   @@index([chatbotId])
+  @@index([isResolved])
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// CONVERSATIONS & MESSAGES - Enhanced
+// ─────────────────────────────────────────────────────────────────────────────
+
+model Conversation {
+  id                String    @id @default(uuid())
+  chatbotId         String
+  chatbot           Chatbot   @relation(fields: [chatbotId], references: [id], onDelete: Cascade)
+  organizationId    String? // denormalized for quick filter
+  visitorId         String    @db.VarChar(120)
+  visitorEmail      String?   @db.VarChar(250)
+  visitorName       String?   @db.VarChar(120)
+  visitorPhone      String?   @db.VarChar(50)
+  channel           String    @default("website") @db.VarChar(20) // website, whatsapp, api
+  status            String    @default("ACTIVE") @db.VarChar(20) // ACTIVE, CLOSED, PAUSED, ESCALATED
+  priority          String    @default("LOW") @db.VarChar(20)
+  sentiment         String?   @db.VarChar(20)
+  intent            String?   @db.VarChar(60)
+  rating            Int?      // 1-5
+  ratingFeedback    String?   @db.Text
+  isEscalated       Boolean   @default(false)
+  escalatedAt       DateTime?
+  sourceUrl         String?   @db.Text // page where chat started
+  messages          Message[]
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  @@index([chatbotId])
+  @@index([organizationId])
   @@index([visitorId])
+  @@index([status])
+  @@index([channel])
+  @@index([createdAt])
+  @@index([chatbotId, status])
 }
 
 model Message {
   id             String       @id @default(uuid())
   conversationId String
   conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
-  sender         String       // "USER" | "AI" | "AGENT"
-  content        String
-  sources        String?      // JSON array of matching chunks / page numbers cited
+  sender         String       @db.VarChar(20) // USER, AI, AGENT, SYSTEM
+  content        String       @db.Text
+  sources        String?      @db.Text // JSON citations
+  sentiment      String?      @db.VarChar(20)
+  intent         String?      @db.VarChar(60)
+  tokenCount     Int          @default(0)
+  responseTimeMs Int          @default(0)
+  channel        String       @default("website") @db.VarChar(20)
   createdAt      DateTime     @default(now())
 
   @@index([conversationId])
+  @@index([sender])
+  @@index([createdAt])
+  @@index([channel])
 }
 
 model Analytics {
   id                 String   @id @default(uuid())
   chatbotId          String
   chatbot            Chatbot  @relation(fields: [chatbotId], references: [id], onDelete: Cascade)
-  date               DateTime @default(now())
+  date               DateTime @default(now()) @db.Date
   conversationsCount Int      @default(0)
   messagesCount      Int      @default(0)
+  websiteVisitors    Int      @default(0)
+  leadsCount         Int      @default(0)
+  salesCount         Int      @default(0)
+  whatsappCount      Int      @default(0)
   avgResponseTimeMs  Int      @default(0)
-  satisfiedCount     Int      @default(0) // Chats rated 4 or 5 stars
-  unsatisfiedCount   Int      @default(0) // Chats rated 1 or 2 stars
+  satisfiedCount     Int      @default(0)
+  unsatisfiedCount   Int      @default(0)
+  escalatedCount     Int      @default(0)
+  topIntents         String?  @db.Text
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
 
+  @@unique([chatbotId, date])
   @@index([chatbotId])
+  @@index([date])
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// BUSINESS OPERATIONS - Inventory, Sales, Expenses, Customers
+// ─────────────────────────────────────────────────────────────────────────────
+
+model ProductCategory {
+  id             String   @id @default(uuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  name           String   @db.VarChar(120)
+  description    String?  @db.Text
+  color          String   @default("#7c3aed") @db.VarChar(20)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  products       Product[]
+
+  @@index([organizationId])
+  @@unique([organizationId, name])
+}
+
+model Product {
+  id             String   @id @default(uuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  categoryId     String?
+  category       ProductCategory? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  name           String   @db.VarChar(200)
+  sku            String?  @db.VarChar(100)
+  description    String?  @db.Text
+  costPrice      Float    @default(0)
+  sellingPrice   Float
+  quantity       Int      @default(0)
+  lowStockThreshold Int   @default(5)
+  image          String?  @db.Text
+  isActive       Boolean  @default(true)
+  saleItems      SaleItem[]
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([organizationId])
+  @@index([categoryId])
+  @@index([sku])
+}
+
+model Customer {
+  id             String   @id @default(uuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  name           String   @db.VarChar(150)
+  email          String?  @db.VarChar(200)
+  phone          String?  @db.VarChar(50)
+  address        String?  @db.Text
+  totalSpent     Float    @default(0)
+  totalOrders    Int      @default(0)
+  lastPurchaseAt DateTime?
+  notes          String?  @db.Text
+  sales          Sale[]
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([organizationId])
+  @@index([phone])
+  @@index([email])
+}
+
+model Sale {
+  id             String   @id @default(uuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  customerId     String?
+  customer       Customer? @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  saleNumber     String   @unique @db.VarChar(50) // e.g., SALE-2026-0001
+  totalAmount    Float
+  discount       Float    @default(0)
+  profit         Float    @default(0)
+  paymentMethod  String   @default("cash") @db.VarChar(30) // cash, transfer, card, pos
+  paymentStatus  String   @default("paid") @db.VarChar(20) // paid, pending, partial
+  channel        String   @default("manual") @db.VarChar(30) // manual, website, whatsapp, pos
+  notes          String?  @db.Text
+  items          SaleItem[]
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([organizationId])
+  @@index([customerId])
+  @@index([createdAt])
+}
+
+model SaleItem {
+  id        String  @id @default(uuid())
+  saleId    String
+  sale      Sale    @relation(fields: [saleId], references: [id], onDelete: Cascade)
+  productId String?
+  product   Product? @relation(fields: [productId], references: [id], onDelete: SetNull)
+  productName String @db.VarChar(200) // denormalized
+  quantity  Int
+  unitPrice Float
+  totalPrice Float
+  profit    Float    @default(0)
+
+  @@index([saleId])
+  @@index([productId])
+}
+
+model ExpenseCategory {
+  id             String   @id @default(uuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  name           String   @db.VarChar(100)
+  color          String   @default("#f59e0b") @db.VarChar(20)
+  expenses       Expense[]
+  createdAt      DateTime @default(now())
+
+  @@index([organizationId])
+  @@unique([organizationId, name])
+}
+
+model Expense {
+  id             String   @id @default(uuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  categoryId     String?
+  category       ExpenseCategory? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  title          String   @db.VarChar(200)
+  description    String?  @db.Text
+  amount         Float
+  paymentMethod  String   @default("cash") @db.VarChar(30)
+  receiptUrl     String?  @db.Text
+  date           DateTime @default(now())
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([organizationId])
+  @@index([categoryId])
+  @@index([date])
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// MARKETING - Landing Pages, Funnels, Leads, Email
+// ─────────────────────────────────────────────────────────────────────────────
+
+model Lead {
+  id             String   @id @default(uuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  email          String   @db.VarChar(200)
+  name           String?  @db.VarChar(150)
+  phone          String?  @db.VarChar(50)
+  source         String   @default("landing_page") @db.VarChar(50) // landing_page, funnel, widget, whatsapp, manual
+  sourceId       String?  @db.VarChar(100) // landingPageId or funnelId
+  status         String   @default("NEW") @db.VarChar(20) // NEW, CONTACTED, QUALIFIED, CONVERTED, LOST
+  metadata       String?  @db.Text // JSON
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([organizationId])
+  @@index([email])
+  @@index([source])
+  @@index([status])
+}
+
+model LandingPage {
+  id             String   @id @default(uuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  slug           String   @db.VarChar(100)
+  title          String   @db.VarChar(200)
+  description    String?  @db.Text
+  template       String   @default("modern") @db.VarChar(50) // modern, minimal, bold, ecommerce
+  content        String   @db.Text // JSON of sections
+  theme          String?  @db.Text // JSON theme config
+  isPublished    Boolean  @default(false)
+  views          Int      @default(0)
+  conversions    Int      @default(0)
+  chatbotId      String?  @db.VarChar(100) // embedded agent
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([organizationId])
+  @@unique([organizationId, slug])
+}
+
+model Funnel {
+  id             String   @id @default(uuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  name           String   @db.VarChar(200)
+  description    String?  @db.Text
+  steps          FunnelStep[]
+  isActive       Boolean  @default(true)
+  totalViews     Int      @default(0)
+  totalConversions Int    @default(0)
+  aiStrategy     String?  @db.Text // JSON AI generated strategy
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([organizationId])
+}
+
+model FunnelStep {
+  id          String   @id @default(uuid())
+  funnelId    String
+  funnel      Funnel   @relation(fields: [funnelId], references: [id], onDelete: Cascade)
+  order       Int
+  type        String   @db.VarChar(30) // landing_page, form, thank_you, email, ai_followup
+  title       String   @db.VarChar(200)
+  config      String   @db.Text // JSON
+  landingPageId String? @db.VarChar(100)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([funnelId])
+}
+
+model EmailCampaign {
+  id             String   @id @default(uuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  name           String   @db.VarChar(200)
+  subject        String   @db.VarChar(300)
+  content        String   @db.Text // HTML
+  status         String   @default("DRAFT") @db.VarChar(20) // DRAFT, SCHEDULED, SENDING, SENT
+  recipientCount Int      @default(0)
+  openCount      Int      @default(0)
+  clickCount     Int      @default(0)
+  scheduledAt    DateTime?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  logs           EmailLog[]
+
+  @@index([organizationId])
+  @@index([status])
+}
+
+model EmailLog {
+  id             String   @id @default(uuid())
+  campaignId     String
+  campaign       EmailCampaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  leadEmail      String   @db.VarChar(200)
+  status         String   @default("PENDING") @db.VarChar(20) // PENDING, SENT, OPENED, CLICKED, FAILED
+  sentAt         DateTime?
+  openedAt       DateTime?
+  createdAt      DateTime @default(now())
+
+  @@index([campaignId])
+  @@index([leadEmail])
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// WHATSAPP - Cloud API Integration + Business Operations Parser
+// ─────────────────────────────────────────────────────────────────────────────
+
+model WhatsAppAccount {
+  id             String   @id @default(uuid())
+  organizationId String   @unique
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  phoneNumberId  String?  @db.VarChar(100)
+  businessAccountId String? @db.VarChar(100)
+  accessToken    String?  @db.Text // encrypted
+  verifyToken    String?  @db.VarChar(200)
+  isConnected    Boolean  @default(false)
+  webhookUrl     String?  @db.Text
+  autoReply      Boolean  @default(true)
+  businessParsing Boolean @default(true) // Auto parse business ops like "sold 5 bags"
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+}
+
+model WhatsAppConversation {
+  id             String   @id @default(uuid())
+  organizationId String   @db.VarChar(100)
+  phoneNumber    String   @db.VarChar(50) // customer phone
+  customerName   String?  @db.VarChar(150)
+  status         String   @default("ACTIVE") @db.VarChar(20)
+  messages       WhatsAppMessage[]
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([organizationId])
+  @@index([phoneNumber])
+}
+
+model WhatsAppMessage {
+  id             String   @id @default(uuid())
+  conversationId String
+  conversation   WhatsAppConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  direction      String   @db.VarChar(10) // INBOUND, OUTBOUND
+  type           String   @default("text") @db.VarChar(20) // text, image, audio, etc
+  content        String   @db.Text
+  isBusinessOp   Boolean  @default(false) // detected as business operation
+  parsedData     String?  @db.Text // JSON of parsed sale/expense if business op
+  aiResponse     String?  @db.Text
+  createdAt      DateTime @default(now())
+
+  @@index([conversationId])
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// PLATFORM ADMIN, API KEYS, SETTINGS
+// ─────────────────────────────────────────────────────────────────────────────
+
+model ApiKey {
+  id             String   @id @default(uuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  provider       String   @db.VarChar(50) // openai, openrouter, gemini, claude
+  key            String   @db.Text // encrypted
+  isActive       Boolean  @default(true)
+  lastUsedAt     DateTime?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([organizationId])
+  @@index([provider])
+}
+
+model PlatformSettings {
+  id          String   @id @default(uuid())
+  key         String   @unique @db.VarChar(100)
+  value       String   @db.Text // JSON
+  description String?  @db.Text
+  updatedAt   DateTime @updatedAt
+}
+
+model Announcement {
+  id          String   @id @default(uuid())
+  title       String   @db.VarChar(200)
+  content     String   @db.Text
+  type        String   @default("INFO") @db.VarChar(20) // INFO, WARNING, UPDATE
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 }

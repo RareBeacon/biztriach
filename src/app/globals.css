@@ -2,98 +2,200 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Biztriach Design System 2.0 - Unique Professional UI/UX */
 :root {
-  --background: 210 40% 98%; /* Slate-50 */
-  --foreground: 222.2 84% 4.9%;
-
+  --background: 0 0% 100%;
+  --foreground: 240 10% 3.9%;
   --card: 0 0% 100%;
-  --card-foreground: 222.2 84% 4.9%;
-
+  --card-foreground: 240 10% 3.9%;
   --popover: 0 0% 100%;
-  --popover-foreground: 222.2 84% 4.9%;
-
-  --primary: 221.2 83.2% 53.3%; /* Blue-600 */
-  --primary-foreground: 210 40% 98%;
-  --primary-hover: 221.2 83.2% 45%;
-
-  --secondary: 210 40% 96.1%;
-  --secondary-foreground: 222.2 47.4% 11.2%;
-
-  --muted: 210 40% 96.1%;
-  --muted-foreground: 215.4 16.3% 46.9%;
-
-  --accent: 210 40% 96.1%;
-  --accent-foreground: 222.2 47.4% 11.2%;
-
+  --popover-foreground: 240 10% 3.9%;
+  --primary: 262 83% 58%;
+  --primary-foreground: 0 0% 98%;
+  --secondary: 240 4.8% 95.9%;
+  --secondary-foreground: 240 5.9% 10%;
+  --muted: 240 4.8% 95.9%;
+  --muted-foreground: 240 3.8% 46.1%;
+  --accent: 240 4.8% 95.9%;
+  --accent-foreground: 240 5.9% 10%;
   --destructive: 0 84.2% 60.2%;
-  --destructive-foreground: 210 40% 98%;
-
-  --border: 214.3 31.8% 91.4%;
-  --input: 214.3 31.8% 91.4%;
-  --ring: 221.2 83.2% 53.3%;
-
-  --radius: 0.75rem;
+  --destructive-foreground: 0 0% 98%;
+  --border: 240 5.9% 90%;
+  --input: 240 5.9% 90%;
+  --ring: 262 83% 58%;
+  --radius: 1rem;
+  --biz-purple: 262 83% 58%;
+  --biz-indigo: 239 84% 67%;
+  --biz-cyan: 189 94% 43%;
 }
 
-/* Marketing Page Dark Mode Styles */
-.dark-theme {
-  --background: 222.2 84% 4.9%; /* Rich charcoal/black */
-  --foreground: 210 40% 98%;
-  --card: 222.2 84% 6.5%;
-  --card-foreground: 210 40% 98%;
-  --border: 217.2 32.6% 17.5%;
-  --muted-foreground: 215 20.2% 65.1%;
+.dark {
+  --background: 240 10% 3.9%;
+  --foreground: 0 0% 98%;
+  --card: 240 10% 3.9%;
+  --card-foreground: 0 0% 98%;
+  --popover: 240 10% 3.9%;
+  --popover-foreground: 0 0% 98%;
+  --primary: 262 83% 68%;
+  --primary-foreground: 240 5.9% 10%;
+  --secondary: 240 3.7% 15.9%;
+  --secondary-foreground: 0 0% 98%;
+  --muted: 240 3.7% 15.9%;
+  --muted-foreground: 240 5% 64.9%;
+  --accent: 240 3.7% 15.9%;
+  --accent-foreground: 0 0% 98%;
+  --destructive: 0 62.8% 30.6%;
+  --destructive-foreground: 0 0% 98%;
+  --border: 240 3.7% 15.9%;
+  --input: 240 3.7% 15.9%;
+  --ring: 262 83% 68%;
+}
+
+* {
+  border-color: hsl(var(--border));
 }
 
 * {
   box-sizing: border-box;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 body {
-  background-color: hsl(var(--background));
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  background: hsl(var(--background));
   color: hsl(var(--foreground));
-  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
   overflow-x: hidden;
+  line-height: 1.6;
 }
 
-/* Custom Scrollbars */
+.font-outfit {
+  font-family: 'Outfit', sans-serif;
+}
+
+/* Unique Biztriach Utilities */
+@layer utilities {
+  .text-biz-gradient {
+    background: linear-gradient(135deg, #7c3aed 0%, #4f46e5 50%, #06b6d4 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+  
+  .bg-biz-gradient {
+    background: linear-gradient(135deg, #7c3aed 0%, #4f46e5 50%, #06b6d4 100%);
+  }
+  
+  .bg-biz-gradient-soft {
+    background: linear-gradient(135deg, rgba(124,58,237,0.08) 0%, rgba(79,70,229,0.08) 50%, rgba(6,182,214,0.08) 100%);
+  }
+  
+  .biz-card {
+    @apply bg-white border border-slate-200/60 rounded-[20px] shadow-soft backdrop-blur-xl;
+    transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  
+  .biz-card:hover {
+    @apply shadow-biz border-violet-200/60 -translate-y-0.5;
+  }
+  
+  .biz-card-dark {
+    background: rgba(255,255,255,0.03);
+    backdrop-filter: blur(24px);
+    border: 1px solid rgba(255,255,255,0.06);
+  }
+  
+  .glass-biz {
+    background: rgba(255,255,255,0.7);
+    backdrop-filter: blur(20px) saturate(180%);
+    border: 1px solid rgba(255,255,255,0.5);
+  }
+  
+  .mesh-bg {
+    background-image: 
+      radial-gradient(at 40% 20%, rgba(124,58,237,0.12) 0px, transparent 50%),
+      radial-gradient(at 80% 0%, rgba(6,182,214,0.12) 0px, transparent 50%),
+      radial-gradient(at 0% 50%, rgba(236,72,153,0.08) 0px, transparent 50%),
+      radial-gradient(at 80% 80%, rgba(139,92,246,0.08) 0px, transparent 50%);
+  }
+  
+  .grid-dots {
+    background-image: radial-gradient(rgba(124,58,237,0.15) 1px, transparent 1px);
+    background-size: 24px 24px;
+  }
+  
+  .noise {
+    position: relative;
+  }
+  
+  .noise::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.02'/%3E%3C/svg%3E");
+    pointer-events: none;
+    opacity: 0.5;
+  }
+}
+
+/* Scrollbars - Biztriach Style */
 ::-webkit-scrollbar {
   width: 6px;
   height: 6px;
 }
+
 ::-webkit-scrollbar-track {
   background: transparent;
 }
+
 ::-webkit-scrollbar-thumb {
-  background: rgba(148, 163, 184, 0.3);
-  border-radius: 4px;
+  background: linear-gradient(180deg, #7c3aed, #4f46e5);
+  border-radius: 10px;
 }
+
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(148, 163, 184, 0.5);
+  background: linear-gradient(180deg, #6d28d9, #4338ca);
 }
 
-/* Premium Glassmorphism Cards */
-.glass-panel {
-  background: rgba(255, 255, 255, 0.03);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+/* Animations */
+@keyframes float {
+  0%, 100% { transform: translateY(0) rotate(0); }
+  50% { transform: translateY(-8px) rotate(1deg); }
 }
 
-.glass-panel-light {
-  background: rgba(255, 255, 255, 0.7);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  border: 1px solid rgba(229, 231, 235, 0.5);
+@keyframes glow {
+  0%, 100% { box-shadow: 0 0 20px rgba(124,58,237,0.2); }
+  50% { box-shadow: 0 0 40px rgba(124,58,237,0.4); }
 }
 
-/* Grid Dots Background Accent */
-.grid-bg {
-  background-image: radial-gradient(rgba(148, 163, 184, 0.15) 1px, transparent 0);
-  background-size: 24px 24px;
+.biz-float {
+  animation: float 6s ease-in-out infinite;
 }
 
-.grid-bg-dark {
-  background-image: radial-gradient(rgba(255, 255, 255, 0.04) 1px, transparent 0);
-  background-size: 24px 24px;
+.biz-glow {
+  animation: glow 3s ease-in-out infinite;
+}
+
+/* Focus states */
+*:focus-visible {
+  outline: 2px solid hsl(var(--ring));
+  outline-offset: 2px;
+}
+
+/* Selection */
+::selection {
+  background: rgba(124,58,237,0.2);
+}
+
+/* Dark theme landing */
+.dark-landing {
+  background: #0a0a16;
+  color: #fefcfe;
+}
+
+.dark-landing .grid-bg {
+  background-image: 
+    linear-gradient(rgba(255,255,255,0.01) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255,255,255,0.01) 1px, transparent 1px);
+  background-size: 32px 32px;
 }

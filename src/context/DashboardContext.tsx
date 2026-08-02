@@ -9,6 +9,8 @@ interface User {
   email: string;
   organizationId: string;
   organizationName: string;
+  status?: string;
+  role?: string;
 }
 
 interface Chatbot {
@@ -18,6 +20,7 @@ interface Chatbot {
   greetingMessage: string;
   instructions: string;
   suggestions: string;
+  documentCount?: number;
 }
 
 interface DashboardContextType {
@@ -42,7 +45,6 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
 
   const fetchSessionAndChatbots = async () => {
     try {
-      // 1. Fetch Session
       const sessionResp = await fetch("/api/auth/session");
       if (!sessionResp.ok) {
         router.push("/login");
@@ -51,21 +53,17 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
       const sessionData = await sessionResp.json();
       setUser(sessionData.user);
 
-      // 2. Fetch Chatbots
       const chatbotResp = await fetch("/api/chatbots");
       if (chatbotResp.ok) {
         const bots = await chatbotResp.json();
         setChatbots(bots);
-        
-        // Resolve active chatbot
-        const savedBotId = localStorage.getItem("supportiq_active_bot");
+        const savedBotId = localStorage.getItem("biztriach_active_bot") || localStorage.getItem("supportiq_active_bot");
         const matched = bots.find((b: Chatbot) => b.id === savedBotId);
-        
         if (matched) {
           setActiveChatbot(matched);
         } else if (bots.length > 0) {
           setActiveChatbot(bots[0]);
-          localStorage.setItem("supportiq_active_bot", bots[0].id);
+          localStorage.setItem("biztriach_active_bot", bots[0].id);
         }
       }
     } catch (e) {
@@ -84,7 +82,7 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
     const matched = chatbots.find(b => b.id === id);
     if (matched) {
       setActiveChatbot(matched);
-      localStorage.setItem("supportiq_active_bot", id);
+      localStorage.setItem("biztriach_active_bot", id);
     }
   };
 
@@ -94,17 +92,11 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
       if (chatbotResp.ok) {
         const bots = await chatbotResp.json();
         setChatbots(bots);
-        
-        // Sync active chatbot updates
         if (activeChatbot) {
           const updated = bots.find((b: Chatbot) => b.id === activeChatbot.id);
-          if (updated) {
-            setActiveChatbot(updated);
-          } else if (bots.length > 0) {
-            setActiveChatbot(bots[0]);
-          } else {
-            setActiveChatbot(null);
-          }
+          if (updated) setActiveChatbot(updated);
+          else if (bots.length > 0) setActiveChatbot(bots[0]);
+          else setActiveChatbot(null);
         } else if (bots.length > 0) {
           setActiveChatbot(bots[0]);
         }
@@ -121,6 +113,7 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
       setUser(null);
       setChatbots([]);
       setActiveChatbot(null);
+      localStorage.removeItem("biztriach_active_bot");
       localStorage.removeItem("supportiq_active_bot");
       router.push("/login");
     } catch (e) {
@@ -131,21 +124,12 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
   };
 
   return (
-    <DashboardContext.Provider
-      value={{
-        user,
-        chatbots,
-        activeChatbot,
-        isLoading,
-        setActiveChatbotById,
-        refreshChatbots,
-        logout,
-      }}
-    >
+    <DashboardContext.Provider value={{ user, chatbots, activeChatbot, isLoading, setActiveChatbotById, refreshChatbots, logout }}>
       {isLoading ? (
-        <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center gap-3">
-          <div className="w-10 h-10 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
-          <p className="text-xs text-slate-500 font-medium">Securing session parameters...</p>
+        <div className="min-h-screen bg-[#0a0a16] flex flex-col items-center justify-center gap-4">
+          <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-violet-600 to-indigo-600 flex items-center justify-center animate-pulse shadow-2xl"><span className="font-outfit font-black text-white text-lg">B</span></div>
+          <div className="w-10 h-10 border-3 border-violet-500 border-t-transparent rounded-full animate-spin" />
+          <p className="text-[12px] text-white/50 tracking-widest uppercase font-bold">Loading Biztriach</p>
         </div>
       ) : (
         children

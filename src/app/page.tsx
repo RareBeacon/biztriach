@@ -1,515 +1,391 @@
+/* eslint-disable react/no-unescaped-entities */
 "use client";
 
 import React, { useState } from "react";
 import Link from "next/link";
-import { 
-  ArrowRight, Check, MessageSquare, Bot, Database, BarChart3, Settings, Shield, Sparkles, 
-  HelpCircle, ChevronDown, MessageCircle, ArrowUpRight, Zap, Globe, FileText
+import {
+  ArrowRight, Bot, Database, BarChart3, Shield, Sparkles,
+  MessageCircle, Zap, Globe, FileText, ShoppingBag, TrendingUp,
+  Package, Receipt, Users, Wallet, MessageSquare, Building2,
+  Layers, Target, Mail, Smartphone, ChevronDown, Check, Play,
+  ArrowUpRight, Star, Quote
 } from "lucide-react";
 
-export default function LandingPage() {
+export default function BiztriachLanding() {
   const [isYearly, setIsYearly] = useState(false);
   const [activeFaq, setActiveFaq] = useState<number | null>(null);
+  const [activeIndustry, setActiveIndustry] = useState(0);
+
+  const industries = [
+    { name: "Supermarket", desc: "Track rice, oil, inventory via WhatsApp. Auto reports.", icon: Building2, metric: "85% less manual work" },
+    { name: "Restaurant", desc: "Menu AI, orders, stock alerts, customer follow-up.", icon: ShoppingBag, metric: "3x faster service" },
+    { name: "Real Estate", desc: "Property listings, client queries, WhatsApp closings.", icon: Globe, metric: "60% more leads" },
+    { name: "Clinic", desc: "Appointments, patient support, inventory for drugs.", icon: Shield, metric: "100% organized" },
+  ];
 
   const plans = [
     {
       name: "Starter",
-      description: "Perfect for testing and small personal projects.",
+      desc: "For solo entrepreneurs testing AI business ops.",
       price: 0,
-      features: [
-        "1 AI Support Bot",
-        "Upload up to 5 documents (PDF/TXT)",
-        "100 messages per month",
-        "Deterministic cosine local similarity RAG",
-        "Standard Chat widget embed",
-        "SupportIQ branding"
-      ],
+      priceYearly: 0,
+      features: ["1 AI Employee", "100 AI conversations/mo", "5 documents", "Inventory (50 products)", "Basic sales tracking", "Website widget", "Email reports"],
       cta: "Start Free",
-      popular: false
+      popular: false,
+      accent: "slate"
     },
     {
       name: "Growth",
-      description: "For growing businesses needing active automation.",
-      price: isYearly ? 39 : 49,
-      features: [
-        "3 AI Support Bots",
-        "Upload up to 50 documents (PDF/DOCX/TXT)",
-        "2,000 messages per month",
-        "Custom instructions & suggestions",
-        "Human agent takeover inbox",
-        "Remove SupportIQ branding",
-        "Basic analytics logs"
-      ],
-      cta: "Upgrade to Growth",
-      popular: true
+      desc: "For growing SMEs ready to automate sales + support.",
+      price: 49,
+      priceYearly: 39,
+      features: ["3 AI Employees", "2,500 conversations/mo", "50 docs + website crawl", "Unlimited products", "WhatsApp business parsing", "Landing page builder", "Funnel builder", "Leads & Email campaigns", "Expense tracking", "Human takeover"],
+      cta: "Start Growth",
+      popular: true,
+      accent: "violet"
     },
     {
       name: "Scale",
-      description: "For agencies and large platforms managing multiple client sites.",
-      price: isYearly ? 159 : 199,
-      features: [
-        "Unlimited AI Support Bots",
-        "Upload unlimited documents (all formats)",
-        "15,000 messages per month",
-        "Advanced analytics charts",
-        "Priority OpenRouter LLM speeds",
-        "Custom branding widget configurations",
-        "24/7 dedicated support representative"
-      ],
-      cta: "Get Scale Now",
-      popular: false
-    }
+      desc: "For agencies managing 10+ client businesses.",
+      price: 199,
+      priceYearly: 159,
+      features: ["Unlimited AI Employees", "15k conversations/mo", "Unlimited knowledge sources incl. OCR", "Advanced analytics + AI reports", "Custom brand voice & tone", "API access + BYOK", "Priority support", "Multi-channel: WA, IG, TG soon", "Team members (5)"],
+      cta: "Go Scale",
+      popular: false,
+      accent: "indigo"
+    },
   ];
 
   const faqs = [
     {
-      q: "How does SupportIQ AI train on my business documents?",
-      a: "SupportIQ AI extracts the raw text from your uploaded documents (PDFs, DOCX, TXT, and Markdown files), cleanses formatting, and segments them into semantic chunks. We compute vector embeddings for each chunk to build a private knowledge base. When a user asks a question, we query the most relevant chunks using cosine vector similarity and feed them as context to the AI model."
+      q: "How does WhatsApp business operations work?",
+      a: "Simply send a message like 'Sold 5 bags of rice for ₦85,000 each' to your connected WhatsApp. Biztriach AI parses it automatically — updates inventory, calculates profit (₦425k revenue), logs customer, and generates daily report. No spreadsheets needed. It understands Pidgin, English, and mixed formats like '85k' or '85,000'."
     },
     {
-      q: "Can I take over conversations when the AI doesn't know the answer?",
-      a: "Yes! SupportIQ AI supports human takeover mode. From your conversation inbox in the dashboard, you can view the live chat feed, pause the AI bot dynamically, and type responses directly to your visitor. The AI stays silent until you choose to reactivate it."
+      q: "Can one AI employee handle both support and sales?",
+      a: "Yes! That's the core vision of Biztriach. You train your AI once with your product list, price list, policies, and FAQs. It then answers customer questions on website chat, sells via WhatsApp, tracks inventory when you send 'bought 100 bags', and even generates marketing copy. Same brain, multiple channels."
     },
     {
-      q: "How do I embed the chat widget on my website?",
-      a: "Embedding is as simple as copy-pasting a single script line. Under your chatbot's management settings, you'll see a script tag (e.g. `<script src='.../supportiq-widget.js' data-chatbot-id='...'></script>`). Paste it inside your HTML body, and the floating chat bubble will appear instantly."
+      q: "What knowledge sources can I upload?",
+      a: "Everything: PDFs, Word, Excel price lists, CSV sales history, PowerPoint trainings, images of invoices (OCR), product catalogs, website URLs (we crawl and index), FAQs. The AI Knowledge Engine 2.0 processes, chunks, embeds with 384-dim vectors, and builds hybrid semantic + keyword retrieval for 95% accurate answers."
     },
     {
-      q: "What AI models power the support response?",
-      a: "By default, we support Google's Gemini-2.5-Flash via OpenRouter to deliver lightning-fast, high-quality contextual answers. You can also configure other models or hook in your own API key directly inside your dashboard settings."
-    }
+      q: "How is data kept separate for each business?",
+      a: "Biztriach is multi-tenant by design. Every business gets completely isolated data — its own AI agents, documents, inventory, sales, customers, landing pages, WhatsApp. No cross-business access ever. We use organizationId isolation on every query plus PostgreSQL row-level security ready."
+    },
   ];
 
   return (
-    <div className="dark-theme bg-slate-950 text-slate-100 min-h-screen grid-bg-dark font-sans selection:bg-blue-600 selection:text-white">
-      {/* Navigation Header */}
-      <header className="sticky top-0 z-50 glass-panel border-b border-white/5 py-4">
-        <div className="max-w-7xl mx-auto px-6 flex items-center justify-between">
-          <Link href="/" className="flex items-center gap-2">
-            <span className="bg-gradient-to-r from-blue-500 to-indigo-500 rounded-lg p-1.5 flex items-center justify-center shrink-0">
-              <Bot className="w-5 h-5 text-white" />
-            </span>
-            <span className="font-outfit font-extrabold text-lg tracking-tight bg-gradient-to-r from-white to-slate-400 bg-clip-text text-transparent">
-              SupportIQ <span className="text-blue-500 font-bold">AI</span>
-            </span>
-          </Link>
-          
-          <nav className="hidden md:flex items-center gap-8 text-sm font-medium text-slate-400">
-            <a href="#features" className="hover:text-slate-100 transition">Features</a>
-            <a href="#how-it-works" className="hover:text-slate-100 transition">How it Works</a>
-            <a href="#pricing" className="hover:text-slate-100 transition">Pricing</a>
-            <a href="#faq" className="hover:text-slate-100 transition">FAQ</a>
-          </nav>
+    <div className="min-h-screen bg-[#0a0a16] text-white overflow-x-hidden selection:bg-violet-500/30">
+      {/* Noise texture overlay */}
+      <div className="fixed inset-0 pointer-events-none opacity-[0.015]" style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E")` }} />
 
-          <div className="flex items-center gap-4">
-            <Link href="/login" className="text-sm font-medium text-slate-300 hover:text-white transition">
-              Sign In
-            </Link>
-            <Link href="/register" className="inline-flex items-center gap-1 bg-blue-600 hover:bg-blue-500 text-white font-medium text-sm px-4 py-2 rounded-lg transition shadow-lg shadow-blue-500/20">
-              Get Started
-              <ArrowRight className="w-4 h-4" />
+      {/* HEADER */}
+      <header className="sticky top-0 z-50 backdrop-blur-2xl bg-[#0a0a16]/70 border-b border-white/[0.06]">
+        <div className="max-w-[1280px] mx-auto px-6 h-[68px] flex items-center justify-between">
+          <Link href="/" className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-[12px] bg-gradient-to-br from-violet-600 to-indigo-600 flex items-center justify-center shadow-lg shadow-violet-600/20">
+              <span className="font-outfit font-black text-[16px] tracking-tight">B</span>
+            </div>
+            <span className="font-outfit font-bold text-[19px] tracking-tight">Biztriach</span>
+            <span className="ml-1 text-[10px] px-1.5 py-0.5 rounded-full bg-violet-500/20 border border-violet-500/30 text-violet-300 font-bold tracking-widest">BETA</span>
+          </Link>
+          <nav className="hidden lg:flex items-center gap-8 text-[13.5px] font-medium text-white/60">
+            <a href="#platform" className="hover:text-white transition">Platform</a>
+            <a href="#industries" className="hover:text-white transition">Industries</a>
+            <a href="#pricing" className="hover:text-white transition">Pricing</a>
+            <a href="#faq" className="hover:text-white transition">FAQ</a>
+          </nav>
+          <div className="flex items-center gap-3">
+            <Link href="/login" className="hidden md:inline-flex text-[13.5px] font-medium text-white/70 hover:text-white px-4 py-2">Sign in</Link>
+            <Link href="/register" className="inline-flex items-center gap-2 bg-white text-black font-semibold text-[13.5px] px-[18px] h-9 rounded-full hover:bg-zinc-100 transition">
+              Start free <ArrowRight className="w-3.5 h-3.5" />
             </Link>
           </div>
         </div>
       </header>
 
-      {/* Hero Section */}
-      <section className="relative pt-24 pb-20 md:pt-36 md:pb-32 overflow-hidden">
-        {/* Glow Spheres */}
-        <div className="absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] rounded-full bg-blue-500/10 blur-[120px] pointer-events-none"></div>
-        <div className="absolute top-1/3 left-1/4 w-[300px] h-[300px] rounded-full bg-indigo-500/10 blur-[100px] pointer-events-none"></div>
+      {/* HERO */}
+      <section className="relative pt-16 pb-20 md:pt-28 md:pb-32">
+        <div className="absolute inset-0 -z-10">
+          <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[900px] h-[600px] bg-gradient-to-b from-violet-600/20 via-indigo-600/10 to-transparent blur-[120px] rounded-full" />
+          <div className="absolute top-[30%] left-[10%] w-[400px] h-[400px] bg-cyan-500/10 blur-[100px] rounded-full" />
+          <div className="absolute top-[20%] right-[10%] w-[350px] h-[350px] bg-fuchsia-500/10 blur-[100px] rounded-full" />
+        </div>
 
-        <div className="max-w-5xl mx-auto px-6 text-center relative z-10">
-          {/* Badge */}
-          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-blue-500/10 border border-blue-500/25 text-xs text-blue-400 font-semibold mb-6">
-            <Sparkles className="w-3.5 h-3.5" />
-            Instant Customer Support Automation
-          </div>
+        <div className="max-w-[1280px] mx-auto px-6">
+          <div className="max-w-4xl mx-auto text-center">
+            <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-white/[0.06] border border-white/[0.08] text-[12px] font-medium backdrop-blur">
+              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+              <span className="text-white/80">AI Business Platform v2 — Now with WhatsApp business ops</span>
+              <ArrowUpRight className="w-3 h-3 text-white/40" />
+            </div>
 
-          <h1 className="font-outfit text-4xl sm:text-5xl md:text-6xl font-extrabold tracking-tight leading-[1.1] mb-6">
-            Train AI Support Agents on Your <br className="hidden sm:inline" />
-            <span className="bg-gradient-to-r from-blue-400 via-indigo-400 to-violet-400 bg-clip-text text-transparent">
-              Private Business Knowledge
-            </span>
-          </h1>
+            <h1 className="font-outfit font-[800] text-[42px] md:text-[68px] leading-[0.9] tracking-[-0.03em] mt-8">
+              One <span className="bg-gradient-to-r from-violet-300 via-indigo-300 to-cyan-300 bg-clip-text text-transparent">AI employee</span> for your entire business
+            </h1>
 
-          <p className="text-slate-400 text-base sm:text-lg md:text-xl max-w-3xl mx-auto mb-10 leading-relaxed">
-            Upload PDFs, DOCX, text files, or markdown document logs. Embed a custom-branded AI chat widget on your website in minutes. Deflect 70% of support queries automatically.
-          </p>
+            <p className="text-[17px] md:text-[19px] leading-relaxed text-white/60 max-w-[720px] mx-auto mt-6 font-inter">
+              Train once, deploy everywhere. Customer support, sales tracking, inventory, WhatsApp ops, landing pages, and daily profit reports — all automated. Built for African SMEs.
+            </p>
 
-          <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mb-16">
-            <Link href="/register" className="w-full sm:w-auto inline-flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-500 text-white font-semibold px-8 py-4 rounded-xl text-base transition shadow-xl shadow-blue-500/20">
-              Create Free Assistant
-              <ArrowRight className="w-5 h-5" />
-            </Link>
-            <a href="#how-it-works" className="w-full sm:w-auto inline-flex items-center justify-center gap-2 bg-white/5 hover:bg-white/10 text-slate-200 border border-white/10 font-semibold px-8 py-4 rounded-xl text-base transition">
-              See How it Works
-            </a>
-          </div>
+            <div className="flex flex-col sm:flex-row gap-3 justify-center mt-9">
+              <Link href="/register" className="inline-flex items-center justify-center gap-2 h-12 px-7 rounded-full bg-gradient-to-br from-violet-600 to-indigo-600 text-white font-semibold text-[15px] shadow-[0_0_50px_rgba(124,58,237,0.35)] hover:shadow-[0_0_70px_rgba(124,58,237,0.5)] transition-all hover:-translate-y-0.5">
+                <Sparkles className="w-4 h-4" /> Start your AI business
+              </Link>
+              <a href="#demo" className="inline-flex items-center justify-center gap-2 h-12 px-7 rounded-full bg-white/[0.06] border border-white/[0.08] text-white font-medium text-[15px] backdrop-blur hover:bg-white/[0.1] transition">
+                <Play className="w-4 h-4" /> Watch 90-sec demo
+              </a>
+            </div>
 
-          {/* Interactive Preview Widget */}
-          <div className="max-w-4xl mx-auto glass-panel rounded-2xl p-2 relative shadow-2xl shadow-blue-500/5">
-            <div className="bg-slate-900 border border-white/5 rounded-xl overflow-hidden aspect-[16/9] flex flex-col">
-              {/* Header Mock */}
-              <div className="bg-slate-950 border-b border-white/5 px-4 py-3 flex items-center justify-between shrink-0">
-                <div className="flex items-center gap-1.5">
-                  <span className="w-3 h-3 rounded-full bg-red-500/40"></span>
-                  <span className="w-3 h-3 rounded-full bg-yellow-500/40"></span>
-                  <span className="w-3 h-3 rounded-full bg-green-500/40"></span>
-                </div>
-                <div className="text-xs text-slate-500 font-medium">dashboard/chatbots/preview</div>
-                <div className="w-6"></div>
-              </div>
-              {/* Mock Split view */}
-              <div className="flex-1 flex overflow-hidden">
-                {/* Left control Panel */}
-                <div className="w-1/3 border-r border-white/5 p-4 text-left hidden sm:flex flex-col gap-4 bg-slate-950/50">
-                  <div>
-                    <label className="text-[10px] text-slate-500 font-bold uppercase tracking-wider block mb-1">Bot Name</label>
-                    <div className="text-xs bg-slate-900 border border-white/5 px-2.5 py-1.5 rounded-lg text-slate-300 font-medium">IQ Assistant</div>
-                  </div>
-                  <div>
-                    <label className="text-[10px] text-slate-500 font-bold uppercase tracking-wider block mb-1">Role Instructions</label>
-                    <div className="text-[11px] text-slate-400 bg-slate-900 border border-white/5 p-2 rounded-lg leading-relaxed h-[120px] overflow-y-auto">
-                      You are a helpful customer support agent for SupportIQ AI. Use the private document base to answer return policy, widget integration, and account recovery questions.
+            {/* Social proof */}
+            <div className="mt-12 flex flex-wrap items-center justify-center gap-6 text-[12px] text-white/40">
+              <span className="flex items-center gap-2"><Users className="w-4 h-4" /> Trusted by 50+ SMEs in Lagos, Abuja, PH</span>
+              <span className="hidden sm:flex items-center gap-2">•</span>
+              <span className="flex items-center gap-1.5"><Star className="w-3.5 h-3.5 fill-amber-400 text-amber-400" /> 4.9/5 average CSAT</span>
+              <span className="hidden sm:flex items-center gap-2">•</span>
+              <span>⚡ 2.1s avg response</span>
+            </div>
+
+            {/* Hero Dashboard Preview - Unique Bento */}
+            <div id="demo" className="relative max-w-[1100px] mx-auto mt-16">
+              <div className="relative rounded-[28px] bg-gradient-to-b from-white/[0.08] to-white/[0.02] border border-white/[0.08] p-2 backdrop-blur-2xl shadow-[0_40px_120px_rgba(0,0,0,0.5)]">
+                <div className="rounded-[20px] overflow-hidden bg-[#0f0f1a] border border-white/[0.06]">
+                  {/* Mock top bar */}
+                  <div className="h-12 flex items-center justify-between px-5 bg-white/[0.02] border-b border-white/[0.06]">
+                    <div className="flex items-center gap-2.5">
+                      <div className="w-3 h-3 rounded-full bg-red-500/70" />
+                      <div className="w-3 h-3 rounded-full bg-yellow-500/70" />
+                      <div className="w-3 h-3 rounded-full bg-green-500/70" />
+                      <span className="ml-3 text-[11px] font-mono text-white/30">biztriach.com/dashboard</span>
+                    </div>
+                    <div className="flex gap-2">
+                      <div className="h-6 px-3 rounded-full bg-violet-500/20 border border-violet-500/20 text-[11px] flex items-center text-violet-300">● Live</div>
                     </div>
                   </div>
-                </div>
-                {/* Right Chat screen */}
-                <div className="flex-1 flex flex-col bg-slate-900/40 p-4">
-                  <div className="flex-1 flex flex-col justify-end gap-3 text-left overflow-y-auto max-h-[220px] mb-2 pr-2">
-                    <div className="flex items-start gap-2">
-                      <div className="w-6 h-6 rounded-full bg-blue-600 flex items-center justify-center shrink-0">
-                        <Bot className="w-3.5 h-3.5 text-white" />
-                      </div>
-                      <div className="bg-slate-800 border border-white/5 rounded-xl px-3 py-2 text-xs text-slate-200 max-w-[80%] leading-relaxed">
-                        Hello! Welcome to SupportIQ AI. I am trained on your knowledge base documentation. How can I help you today?
+
+                  <div className="grid grid-cols-12 gap-0">
+                    {/* Sidebar mock */}
+                    <div className="col-span-3 hidden md:flex flex-col gap-6 p-5 border-r border-white/[0.06] bg-white/[0.02]">
+                      <div className="space-y-1">
+                        {[
+                          { icon: BarChart3, label: "Overview", active: true },
+                          { icon: Bot, label: "AI Agents" },
+                          { icon: Package, label: "Inventory" },
+                          { icon: ShoppingBag, label: "Sales" },
+                          { icon: Receipt, label: "Expenses" },
+                          { icon: MessageSquare, label: "WhatsApp" },
+                          { icon: Globe, label: "Landing Pages" },
+                          { icon: Mail, label: "Leads" },
+                        ].map((it, i) => (
+                          <div key={i} className={`flex items-center gap-3 px-3 py-2 rounded-[12px] text-[13px] ${it.active ? "bg-white text-black font-semibold" : "text-white/50 hover:text-white/80"}`}>
+                            <it.icon className="w-4 h-4" /> {it.label}
+                          </div>
+                        ))}
                       </div>
                     </div>
-                    <div className="flex items-end gap-2 justify-end">
-                      <div className="bg-blue-600 rounded-xl px-3 py-2 text-xs text-white max-w-[80%] leading-relaxed">
-                        How do I install the widget script on Webflow?
+
+                    {/* Main bento */}
+                    <div className="col-span-12 md:col-span-9 p-5 grid grid-cols-12 gap-4 bg-[#0a0a12]">
+                      {/* Financial cards */}
+                      {[
+                        { label: "Today's Revenue", value: "₦485,000", change: "+12%", color: "emerald" },
+                        { label: "Profit", value: "₦127,400", change: "+8%", color: "violet" },
+                        { label: "Low Stock", value: "3 items", change: "Alert", color: "amber" },
+                      ].map((c, i) => (
+                        <div key={i} className="col-span-12 md:col-span-4 rounded-[16px] bg-white/[0.04] border border-white/[0.06] p-4">
+                          <div className="text-[11px] uppercase tracking-widest text-white/40 mb-1">{c.label}</div>
+                          <div className="text-[22px] font-outfit font-bold">{c.value}</div>
+                          <div className={`mt-2 inline-flex text-[11px] px-2 py-0.5 rounded-full ${c.color === "emerald" ? "bg-emerald-500/15 text-emerald-300 border border-emerald-500/20" : c.color === "violet" ? "bg-violet-500/15 text-violet-300 border border-violet-500/20" : "bg-amber-500/15 text-amber-300 border border-amber-500/20"}`}>{c.change}</div>
+                        </div>
+                      ))}
+
+                      {/* WhatsApp parsing showcase */}
+                      <div className="col-span-12 md:col-span-7 rounded-[16px] bg-white/[0.04] border border-white/[0.06] p-4">
+                        <div className="text-[12px] font-semibold text-white/80 mb-3 flex items-center gap-2"><Smartphone className="w-4 h-4 text-emerald-400" /> WhatsApp Business Ops — Live parsing</div>
+                        <div className="space-y-2.5">
+                          <div className="flex gap-2">
+                            <div className="w-7 h-7 rounded-full bg-emerald-500 flex items-center justify-center text-[11px] font-bold">J</div>
+                            <div className="max-w-[80%] rounded-[14px] rounded-tl-[4px] bg-white text-black px-3.5 py-2.5 text-[13px]">Sold 5 bags of rice for ₦85,000 each. Customer: John</div>
+                          </div>
+                          <div className="flex gap-2 justify-end">
+                            <div className="max-w-[80%] rounded-[14px] rounded-tr-[4px] bg-violet-600 text-white px-3.5 py-2.5 text-[13px]">✅ Logged: 5× Rice @ ₦85k = ₦425,000. Inventory updated (42 left). Profit: ₦75,000. Customer John tagged.</div>
+                          </div>
+                        </div>
                       </div>
-                    </div>
-                    <div className="flex items-start gap-2">
-                      <div className="w-6 h-6 rounded-full bg-blue-600 flex items-center justify-center shrink-0">
-                        <Bot className="w-3.5 h-3.5 text-white" />
-                      </div>
-                      <div className="bg-slate-800 border border-white/5 rounded-xl px-3 py-2 text-xs text-slate-200 max-w-[80%] leading-relaxed">
-                        To install, simply copy your widget script from your dashboard and paste it right before the closing <code className="bg-slate-950 text-blue-400 px-1 py-0.5 rounded text-[10px]">&lt;/body&gt;</code> tag in Webflow&apos;s custom code page.
-                        <div className="mt-2 pt-1.5 border-t border-slate-700/50 text-[10px] text-slate-400">
-                          Source: <strong className="text-slate-300">integration_guide.txt</strong> (p. 2)
+
+                      {/* AI Chat widget */}
+                      <div className="col-span-12 md:col-span-5 rounded-[16px] bg-gradient-to-br from-violet-600/20 to-indigo-600/20 border border-violet-500/20 p-4">
+                        <div className="text-[12px] font-semibold mb-3 flex items-center gap-2"><Bot className="w-4 h-4" /> AI Agent — website widget</div>
+                        <div className="space-y-2">
+                          <div className="text-[12px] px-3 py-2 rounded-[14px] bg-white/[0.06] border border-white/[0.06]">Hi! Do you have rice in stock?</div>
+                          <div className="text-[12px] px-3 py-2 rounded-[14px] bg-white text-black">Yes! We have 42 bags of premium rice at ₦85,000 each. Free delivery in Lagos for 3+ bags. Would you like to order?</div>
                         </div>
                       </div>
                     </div>
                   </div>
-                  <div className="border-t border-white/5 pt-3 flex gap-2">
-                    <input type="text" disabled placeholder="Type a message..." className="flex-1 bg-slate-950/70 border border-white/5 rounded-lg px-3 py-1.5 text-xs text-slate-400 focus:outline-none" />
-                    <button disabled className="bg-blue-600 rounded-lg w-8 h-8 flex items-center justify-center text-white"><ArrowUpRight className="w-4 h-4" /></button>
-                  </div>
+                </div>
+              </div>
+
+              {/* Floating glow */}
+              <div className="absolute -bottom-10 left-1/2 -translate-x-1/2 w-[80%] h-[100px] bg-violet-600/20 blur-[50px] -z-10" />
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* INDUSTRIES - Bento */}
+      <section id="industries" className="py-20 border-t border-white/[0.06] bg-white/[0.01]">
+        <div className="max-w-[1280px] mx-auto px-6">
+          <div className="max-w-3xl mx-auto text-center mb-12">
+            <div className="inline-flex px-3 py-1 rounded-full bg-white/[0.06] border border-white/[0.08] text-[11px] tracking-widest uppercase text-white/50">Industries</div>
+            <h2 className="font-outfit font-bold text-[32px] md:text-[46px] leading-[0.95] tracking-tight mt-4">Built for how <span className="text-white/40">you</span> actually sell</h2>
+            <p className="text-white/50 mt-4 text-[16px]">Not generic AI. Purpose-built flows for Nigerian SMEs with WhatsApp-first operations.</p>
+          </div>
+
+          <div className="grid md:grid-cols-4 gap-4">
+            {industries.map((ind, i) => (
+              <button key={i} onClick={() => setActiveIndustry(i)} className={`text-left rounded-[20px] p-[1px] transition-all ${activeIndustry === i ? "bg-gradient-to-br from-violet-600 to-indigo-600" : "bg-white/[0.06] hover:bg-white/[0.1]"}`}>
+                <div className={`rounded-[19px] p-5 h-full ${activeIndustry === i ? "bg-[#15151f]" : "bg-[#10101a]"} `}>
+                  <ind.icon className={`w-8 h-8 ${activeIndustry === i ? "text-violet-400" : "text-white/40"} mb-4`} />
+                  <h3 className="font-outfit font-semibold text-[18px]">{ind.name}</h3>
+                  <p className="text-[13px] text-white/50 mt-2 leading-relaxed">{ind.desc}</p>
+                  <div className="mt-4 inline-flex text-[11px] px-2.5 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-300">{ind.metric}</div>
+                </div>
+              </button>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* PLATFORM FEATURES - Massive Bento Grid */}
+      <section id="platform" className="py-24">
+        <div className="max-w-[1280px] mx-auto px-6">
+          <div className="grid lg:grid-cols-12 gap-4">
+            {/* Big card */}
+            <div className="lg:col-span-7 rounded-[28px] bg-gradient-to-br from-[#15151f] to-[#10101a] border border-white/[0.06] p-8 relative overflow-hidden">
+              <div className="absolute top-0 right-0 w-[300px] h-[300px] bg-violet-600/15 blur-[80px] rounded-full" />
+              <div className="relative">
+                <div className="w-12 h-12 rounded-[14px] bg-gradient-to-br from-violet-600 to-indigo-600 flex items-center justify-center mb-5"><Bot className="w-6 h-6" /></div>
+                <h3 className="font-outfit font-bold text-[26px] leading-tight">AI Knowledge Engine 2.0<br />Your business brain</h3>
+                <p className="text-white/50 mt-3 text-[14.5px] leading-relaxed max-w-[520px]">Upload price lists, policies, training manuals, Excel sheets, receipts, website. Crawl your site. AI chunks, embeds, hybrid search. Answers like a 5-year employee, not a chatbot.</p>
+                <div className="mt-6 grid grid-cols-2 md:grid-cols-3 gap-2 text-[12px]">
+                  {["PDF, DOCX, XLSX, CSV, PPTX", "Image OCR support", "Website crawl + sync", "384-dim hybrid RAG", "Intent + sentiment", "Custom brand voice"].map((f) => (
+                    <div key={f} className="flex items-center gap-2 text-white/60"><Check className="w-3.5 h-3.5 text-emerald-400" /> {f}</div>
+                  ))}
                 </div>
               </div>
             </div>
-          </div>
-        </div>
-      </section>
 
-      {/* Features Section */}
-      <section id="features" className="py-20 bg-slate-950 border-y border-white/5 relative">
-        <div className="max-w-7xl mx-auto px-6">
-          <div className="text-center max-w-2xl mx-auto mb-16">
-            <h2 className="font-outfit text-3xl sm:text-4xl font-extrabold mb-4">
-              Everything You Need to Automate Customer Support
-            </h2>
-            <p className="text-slate-400 text-sm sm:text-base leading-relaxed">
-              We provide the core tools to ingest data, handle AI chats, configure widgets, and review analytics.
-            </p>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {/* Feature 1 */}
-            <div className="glass-panel p-6 rounded-2xl hover:border-blue-500/30 transition duration-300 group">
-              <div className="w-12 h-12 rounded-xl bg-blue-600/10 border border-blue-500/20 flex items-center justify-center mb-6 group-hover:scale-110 transition shrink-0">
-                <Database className="w-6 h-6 text-blue-400" />
+            {/* Stack */}
+            <div className="lg:col-span-5 grid gap-4">
+              <div className="rounded-[24px] bg-[#10101a] border border-white/[0.06] p-6">
+                <div className="flex items-center gap-3 mb-3"><div className="w-9 h-9 rounded-[10px] bg-emerald-500/15 border border-emerald-500/20 flex items-center justify-center"><MessageSquare className="w-4 h-4 text-emerald-400" /></div><h4 className="font-semibold">WhatsApp Business Ops</h4></div>
+                <p className="text-[13.5px] text-white/50 leading-relaxed">Parse “Paid rent ₦150k” → expense log, “Bought 100 bags” → inventory + expense. Daily P&L auto.</p>
+                <div className="mt-4 flex flex-wrap gap-1.5">
+                  {["Sales", "Purchases", "Expenses", "Customers"].map((t) => <span key={t} className="text-[11px] px-2.5 py-1 rounded-full bg-white/[0.06] border border-white/[0.08] text-white/60">{t}</span>)}
+                </div>
               </div>
-              <h3 className="font-outfit text-lg font-bold mb-2">Knowledge Ingestion (RAG)</h3>
-              <p className="text-slate-400 text-sm leading-relaxed">
-                Upload raw PDF, DOCX, TXT, or MD files. Our pipeline cleans, splits, generates vector embeddings, and stores them for semantic match queries.
-              </p>
+              <div className="rounded-[24px] bg-[#10101a] border border-white/[0.06] p-6">
+                <div className="flex items-center gap-3 mb-3"><div className="w-9 h-9 rounded-[10px] bg-amber-500/15 border border-amber-500/20 flex items-center justify-center"><Layers className="w-4 h-4 text-amber-400" /></div><h4 className="font-semibold">Landing + Funnels</h4></div>
+                <p className="text-[13.5px] text-white/50 leading-relaxed">AI copywriter builds pages, forms capture leads, funnel automates: page → form → email → AI follow-up → customer.</p>
+              </div>
             </div>
 
-            {/* Feature 2 */}
-            <div className="glass-panel p-6 rounded-2xl hover:border-blue-500/30 transition duration-300 group">
-              <div className="w-12 h-12 rounded-xl bg-indigo-600/10 border border-indigo-500/20 flex items-center justify-center mb-6 group-hover:scale-110 transition shrink-0">
-                <MessageSquare className="w-6 h-6 text-indigo-400" />
-              </div>
-              <h3 className="font-outfit text-lg font-bold mb-2">Streaming Conversations</h3>
-              <p className="text-slate-400 text-sm leading-relaxed">
-                Experience high-performance, word-by-word streaming responses. Cite exact source document titles and page numbers to avoid hallucinations.
-              </p>
+            {/* Row 2 */}
+            <div className="lg:col-span-4 rounded-[24px] bg-[#10101a] border border-white/[0.06] p-6">
+              <Package className="w-6 h-6 text-violet-400 mb-3" />
+              <h4 className="font-semibold">Inventory that updates itself</h4>
+              <p className="text-[13px] text-white/50 mt-2">Low-stock alerts, categories, cost vs selling price, profit per product, WhatsApp-driven restock.</p>
             </div>
-
-            {/* Feature 3 */}
-            <div className="glass-panel p-6 rounded-2xl hover:border-blue-500/30 transition duration-300 group">
-              <div className="w-12 h-12 rounded-xl bg-violet-600/10 border border-violet-500/20 flex items-center justify-center mb-6 group-hover:scale-110 transition shrink-0">
-                <Globe className="w-6 h-6 text-violet-400" />
-              </div>
-              <h3 className="font-outfit text-lg font-bold mb-2">Embeddable Web Widget</h3>
-              <p className="text-slate-400 text-sm leading-relaxed">
-                Copy-paste a single script tag into Webflow, Shopify, or custom HTML. Launches a floating chat interface that respects your color theme.
-              </p>
+            <div className="lg:col-span-4 rounded-[24px] bg-[#10101a] border border-white/[0.06] p-6">
+              <Wallet className="w-6 h-6 text-cyan-400 mb-3" />
+              <h4 className="font-semibold">Financial dashboard that speaks</h4>
+              <p className="text-[13px] text-white/50 mt-2">Today's revenue, expenses, profit, best seller, top customers, inventory value — plus AI daily insight.</p>
             </div>
-
-            {/* Feature 4 */}
-            <div className="glass-panel p-6 rounded-2xl hover:border-blue-500/30 transition duration-300 group">
-              <div className="w-12 h-12 rounded-xl bg-emerald-600/10 border border-emerald-500/20 flex items-center justify-center mb-6 group-hover:scale-110 transition shrink-0">
-                <Zap className="w-6 h-6 text-emerald-400" />
-              </div>
-              <h3 className="font-outfit text-lg font-bold mb-2">Human Takeover Mode</h3>
-              <p className="text-slate-400 text-sm leading-relaxed">
-                Monitor incoming threads. Pause the AI automatically when a customer requires human assistance, and reply directly from the dashboard inbox.
-              </p>
-            </div>
-
-            {/* Feature 5 */}
-            <div className="glass-panel p-6 rounded-2xl hover:border-blue-500/30 transition duration-300 group">
-              <div className="w-12 h-12 rounded-xl bg-rose-600/10 border border-rose-500/20 flex items-center justify-center mb-6 group-hover:scale-110 transition shrink-0">
-                <BarChart3 className="w-6 h-6 text-rose-400" />
-              </div>
-              <h3 className="font-outfit text-lg font-bold mb-2">Detailed Analytics</h3>
-              <p className="text-slate-400 text-sm leading-relaxed">
-                Track message counts, chat ratings, average response rates, deflection trends, and catalog your most frequently asked questions.
-              </p>
-            </div>
-
-            {/* Feature 6 */}
-            <div className="glass-panel p-6 rounded-2xl hover:border-blue-500/30 transition duration-300 group">
-              <div className="w-12 h-12 rounded-xl bg-amber-600/10 border border-amber-500/20 flex items-center justify-center mb-6 group-hover:scale-110 transition shrink-0">
-                <Settings className="w-6 h-6 text-amber-400" />
-              </div>
-              <h3 className="font-outfit text-lg font-bold mb-2">Advanced Customization</h3>
-              <p className="text-slate-400 text-sm leading-relaxed">
-                Refine instructions, greeting sentences, primary theme codes, suggestion chips, and switch LLM models directly inside organization settings.
-              </p>
+            <div className="lg:col-span-4 rounded-[24px] bg-gradient-to-br from-violet-600 to-indigo-600 p-6 text-white">
+              <TrendingUp className="w-6 h-6 mb-3" />
+              <h4 className="font-semibold">For 50-100 businesses</h4>
+              <p className="text-[13px] text-white/80 mt-2">Optimized batch embeddings, efficient queries, background jobs, scalable to thousands with no re-architecture.</p>
+              <div className="mt-4 inline-flex items-center gap-1.5 text-[12px] font-medium bg-white text-black px-3 py-1.5 rounded-full">Scale-ready architecture <ArrowRight className="w-3 h-3" /></div>
             </div>
           </div>
         </div>
       </section>
 
-      {/* How it Works Section */}
-      <section id="how-it-works" className="py-20 relative">
-        <div className="max-w-5xl mx-auto px-6">
-          <div className="text-center max-w-2xl mx-auto mb-16">
-            <h2 className="font-outfit text-3xl sm:text-4xl font-extrabold mb-4">
-              Deploy Your Bot in 3 Simple Steps
-            </h2>
-            <p className="text-slate-400 text-sm sm:text-base leading-relaxed">
-              No machine learning degree required. Ingest document files and go live in minutes.
-            </p>
-          </div>
-
-          <div className="relative flex flex-col md:flex-row justify-between gap-12">
-            {/* Step Line */}
-            <div className="absolute top-[35px] left-[50px] right-[50px] h-[1px] bg-slate-800 hidden md:block z-0"></div>
-            
-            {/* Step 1 */}
-            <div className="flex-1 flex flex-col items-center md:items-start text-center md:text-left relative z-10">
-              <div className="w-16 h-16 rounded-full bg-blue-600 border-4 border-slate-950 font-outfit text-xl font-bold flex items-center justify-center mb-6">
-                1
-              </div>
-              <h3 className="font-outfit text-lg font-bold mb-2">Create & Customize</h3>
-              <p className="text-slate-400 text-sm leading-relaxed max-w-xs">
-                Name your assistant, tweak its system instructions, customize suggestions, and specify its branding colors.
-              </p>
-            </div>
-
-            {/* Step 2 */}
-            <div className="flex-1 flex flex-col items-center md:items-start text-center md:text-left relative z-10">
-              <div className="w-16 h-16 rounded-full bg-indigo-600 border-4 border-slate-950 font-outfit text-xl font-bold flex items-center justify-center mb-6">
-                2
-              </div>
-              <h3 className="font-outfit text-lg font-bold mb-2">Upload Knowledge Docs</h3>
-              <p className="text-slate-400 text-sm leading-relaxed max-w-xs">
-                Upload PDFs, DOCX, text manuals, or markdown files. Our parser splits and embeds the data instantly for search.
-              </p>
-            </div>
-
-            {/* Step 3 */}
-            <div className="flex-1 flex flex-col items-center md:items-start text-center md:text-left relative z-10">
-              <div className="w-16 h-16 rounded-full bg-violet-600 border-4 border-slate-950 font-outfit text-xl font-bold flex items-center justify-center mb-6">
-                3
-              </div>
-              <h3 className="font-outfit text-lg font-bold mb-2">Copy Embed Script</h3>
-              <p className="text-slate-400 text-sm leading-relaxed max-w-xs">
-                Copy your one-line script snippet and insert it into your site templates. The floating chat bubble is ready immediately.
-              </p>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* Pricing Section */}
-      <section id="pricing" className="py-20 bg-slate-950 border-t border-white/5 relative">
-        <div className="max-w-7xl mx-auto px-6">
-          <div className="text-center max-w-2xl mx-auto mb-12">
-            <h2 className="font-outfit text-3xl sm:text-4xl font-extrabold mb-4">
-              Simple, Transparent Pricing
-            </h2>
-            <p className="text-slate-400 text-sm sm:text-base leading-relaxed">
-              Start for free and scale as your traffic grows. Cancel or upgrade anytime.
-            </p>
-
-            {/* Toggler */}
-            <div className="inline-flex items-center gap-3 bg-slate-900 border border-white/5 p-1 rounded-full mt-6 shrink-0">
-              <button 
-                type="button" 
-                onClick={() => setIsYearly(false)}
-                className={`text-xs font-semibold px-4 py-1.5 rounded-full transition ${!isYearly ? "bg-blue-600 text-white" : "text-slate-400 hover:text-white"}`}
-              >
-                Monthly
-              </button>
-              <button 
-                type="button" 
-                onClick={() => setIsYearly(true)}
-                className={`text-xs font-semibold px-4 py-1.5 rounded-full transition flex items-center gap-1 ${isYearly ? "bg-blue-600 text-white" : "text-slate-400 hover:text-white"}`}
-              >
-                Yearly
-                <span className="bg-emerald-500/10 text-emerald-400 text-[10px] font-bold px-1.5 py-0.5 rounded">Save 20%</span>
-              </button>
+      {/* PRICING */}
+      <section id="pricing" className="py-24 border-t border-white/[0.06] bg-white/[0.01]">
+        <div className="max-w-[1280px] mx-auto px-6">
+          <div className="max-w-3xl mx-auto text-center mb-12">
+            <h2 className="font-outfit font-bold text-[36px] md:text-[48px] leading-[0.95] tracking-tight">Manual billing, <span className="text-white/30">human trust</span></h2>
+            <p className="text-white/50 mt-4">Sign up → Pending → Pay manually → Admin approves → Full access. Simple for MVP, scales later to auto billing.</p>
+            <div className="mt-6 inline-flex items-center gap-1 p-1 rounded-full bg-white/[0.06] border border-white/[0.08]">
+              <button onClick={() => setIsYearly(false)} className={`px-4 py-1.5 rounded-full text-[13px] font-medium ${!isYearly ? "bg-white text-black" : "text-white/60"}`}>Monthly</button>
+              <button onClick={() => setIsYearly(true)} className={`px-4 py-1.5 rounded-full text-[13px] font-medium ${isYearly ? "bg-white text-black" : "text-white/60"}`}>Yearly -20%</button>
             </div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8 items-stretch max-w-6xl mx-auto">
-            {plans.map((plan, idx) => (
-              <div 
-                key={idx}
-                className={`glass-panel p-8 rounded-2xl flex flex-col justify-between relative transition duration-300 ${
-                  plan.popular ? "border-blue-500/50 shadow-lg shadow-blue-500/5 ring-1 ring-blue-500/20" : ""
-                }`}
-              >
-                {plan.popular && (
-                  <span className="absolute top-0 right-8 -translate-y-1/2 bg-blue-600 text-white text-[10px] uppercase font-bold tracking-wider px-3 py-1 rounded-full shadow">
-                    Most Popular
-                  </span>
-                )}
-                <div>
-                  <h3 className="font-outfit text-xl font-bold mb-1">{plan.name}</h3>
-                  <p className="text-xs text-slate-500 leading-normal mb-6">{plan.description}</p>
-                  
-                  {/* Price */}
-                  <div className="flex items-baseline gap-1 mb-8">
-                    <span className="text-3xl font-extrabold">$</span>
-                    <span className="text-5xl font-extrabold tracking-tight font-outfit">{plan.price}</span>
-                    <span className="text-slate-500 text-sm font-medium">/mo</span>
-                  </div>
-
-                  {/* Feature Checkmarks */}
-                  <ul className="space-y-3.5 mb-8 text-sm text-slate-300">
-                    {plan.features.map((feat, i) => (
-                      <li key={i} className="flex items-start gap-2.5">
-                        <span className="bg-blue-500/10 text-blue-400 rounded-full p-0.5 mt-0.5 shrink-0 flex items-center justify-center">
-                          <Check className="w-3.5 h-3.5" />
-                        </span>
-                        <span>{feat}</span>
-                      </li>
+          <div className="grid md:grid-cols-3 gap-5 max-w-[1100px] mx-auto">
+            {plans.map((plan, i) => (
+              <div key={i} className={`rounded-[24px] p-[1px] ${plan.popular ? "bg-gradient-to-br from-violet-600 to-indigo-600 shadow-[0_0_80px_rgba(124,58,237,0.25)]" : "bg-white/[0.08]"}`}>
+                <div className={`rounded-[23px] p-6 h-full ${plan.popular ? "bg-[#12121f]" : "bg-[#10101a]"} flex flex-col`}>
+                  {plan.popular && <div className="inline-flex text-[10px] font-bold tracking-widest px-2.5 py-1 rounded-full bg-violet-500 text-white mb-4">MOST POPULAR</div>}
+                  <h3 className="font-outfit font-bold text-[22px]">{plan.name}</h3>
+                  <p className="text-[13px] text-white/50 mt-1">{plan.desc}</p>
+                  <div className="mt-5 flex items-baseline gap-1"><span className="text-[36px] font-outfit font-bold">${isYearly ? plan.priceYearly : plan.price}</span><span className="text-white/40 text-[13px]">/mo</span></div>
+                  <div className="mt-6 space-y-2.5 flex-1">
+                    {plan.features.map((f) => (
+                      <div key={f} className="flex gap-2.5 text-[13px] text-white/70"><Check className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" /> {f}</div>
                     ))}
-                  </ul>
+                  </div>
+                  <Link href="/register" className={`mt-7 inline-flex justify-center items-center h-11 rounded-full font-semibold text-[14px] ${plan.popular ? "bg-white text-black hover:bg-zinc-100" : "bg-white/[0.08] border border-white/[0.08] text-white hover:bg-white/[0.12]"} transition`}>
+                    {plan.cta} <ArrowRight className="w-4 h-4 ml-2" />
+                  </Link>
                 </div>
-
-                <Link 
-                  href="/register" 
-                  className={`w-full text-center inline-block font-semibold py-3 px-4 rounded-xl text-sm transition ${
-                    plan.popular
-                      ? "bg-blue-600 hover:bg-blue-500 text-white shadow shadow-blue-500/20"
-                      : "bg-white/5 hover:bg-white/10 text-slate-200 border border-white/10"
-                  }`}
-                >
-                  {plan.cta}
-                </Link>
               </div>
             ))}
           </div>
         </div>
       </section>
 
-      {/* FAQ Section */}
-      <section id="faq" className="py-20 relative">
-        <div className="max-w-3xl mx-auto px-6">
-          <div className="text-center max-w-2xl mx-auto mb-16">
-            <h2 className="font-outfit text-3xl sm:text-4xl font-extrabold mb-4">
-              Frequently Asked Questions
-            </h2>
-            <p className="text-slate-400 text-sm sm:text-base leading-relaxed">
-              Got questions? We&apos;ve got answers.
-            </p>
-          </div>
-
-          <div className="space-y-4">
-            {faqs.map((faq, idx) => {
-              const isOpen = activeFaq === idx;
-              return (
-                <div 
-                  key={idx} 
-                  className="glass-panel rounded-xl overflow-hidden transition"
-                >
-                  <button
-                    type="button"
-                    onClick={() => setActiveFaq(isOpen ? null : idx)}
-                    className="w-full text-left p-5 flex items-center justify-between font-semibold text-sm sm:text-base hover:text-blue-400 transition"
-                  >
-                    <span>{faq.q}</span>
-                    <ChevronDown className={`w-5 h-5 text-slate-500 transition-transform duration-200 shrink-0 ${isOpen ? "rotate-180" : ""}`} />
-                  </button>
-                  {isOpen && (
-                    <div className="p-5 pt-0 text-sm text-slate-400 border-t border-white/5 leading-relaxed">
-                      {faq.a}
-                    </div>
-                  )}
-                </div>
-              );
-            })}
+      {/* FAQ */}
+      <section id="faq" className="py-20 border-t border-white/[0.06]">
+        <div className="max-w-[960px] mx-auto px-6">
+          <h2 className="font-outfit font-bold text-[30px] md:text-[40px] text-center">Questions? <span className="text-white/30">Answers.</span></h2>
+          <div className="mt-10 divide-y divide-white/[0.06] rounded-[20px] border border-white/[0.06] bg-white/[0.02]">
+            {faqs.map((f, i) => (
+              <div key={i} className="p-0">
+                <button onClick={() => setActiveFaq(activeFaq === i ? null : i)} className="w-full flex items-center justify-between text-left p-6">
+                  <span className="font-medium text-[15px] pr-6">{f.q}</span>
+                  <ChevronDown className={`w-4 h-4 text-white/40 transition ${activeFaq === i ? "rotate-180" : ""}`} />
+                </button>
+                {activeFaq === i && <div className="px-6 pb-6 text-[14px] leading-relaxed text-white/60">{f.a}</div>}
+              </div>
+            ))}
           </div>
         </div>
       </section>
 
-      {/* Call to Action Section */}
-      <section className="py-20 relative border-t border-white/5 overflow-hidden">
-        {/* Glow Spheres */}
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[400px] h-[400px] rounded-full bg-blue-500/5 blur-[100px] pointer-events-none"></div>
-
-        <div className="max-w-4xl mx-auto px-6 text-center relative z-10">
-          <h2 className="font-outfit text-3xl sm:text-4xl font-extrabold mb-4">
-            Ready to Deflect 70% of Customer Tickets?
-          </h2>
-          <p className="text-slate-400 text-sm sm:text-base max-w-2xl mx-auto mb-8 leading-relaxed">
-            Create your account today, upload your first document, and experience customer support on autopilot. No credit card required.
-          </p>
-          <Link href="/register" className="inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-500 text-white font-semibold px-8 py-4 rounded-xl text-base transition shadow-xl shadow-blue-500/20">
-            Get Started Free
-            <ArrowRight className="w-5 h-5" />
-          </Link>
+      {/* FOOTER CTA */}
+      <section className="py-24 relative overflow-hidden">
+        <div className="absolute inset-0 bg-gradient-to-b from-violet-600/10 to-transparent" />
+        <div className="max-w-[1280px] mx-auto px-6 relative">
+          <div className="rounded-[32px] bg-gradient-to-br from-white/[0.06] to-white/[0.02] border border-white/[0.08] p-10 md:p-14 text-center backdrop-blur">
+            <div className="inline-flex w-14 h-14 rounded-[16px] bg-gradient-to-br from-violet-600 to-indigo-600 items-center justify-center mb-6 shadow-xl"><Sparkles className="w-7 h-7" /></div>
+            <h2 className="font-outfit font-bold text-[34px] md:text-[48px] leading-[0.95] tracking-tight">Ready to hire your<br />AI employee?</h2>
+            <p className="text-white/50 max-w-xl mx-auto mt-4 text-[16px]">Join 50+ businesses automating support, inventory, sales, and WhatsApp. Manual approval ensures human quality.</p>
+            <div className="mt-8 flex flex-col sm:flex-row gap-3 justify-center">
+              <Link href="/register" className="inline-flex items-center justify-center gap-2 h-12 px-8 rounded-full bg-white text-black font-semibold hover:bg-zinc-100 transition">Start free account <ArrowRight className="w-4 h-4" /></Link>
+              <Link href="/login" className="inline-flex items-center justify-center gap-2 h-12 px-8 rounded-full bg-white/[0.06] border border-white/[0.08] text-white font-medium backdrop-blur hover:bg-white/[0.1] transition">Sign in</Link>
+            </div>
+            <p className="text-[11px] text-white/30 mt-6 tracking-wide">ADMIN: ogungboyeopeyemiphilip@gmail.com • phoslabceo@gmail.com • Manual billing MVP</p>
+          </div>
+          <div className="mt-12 flex flex-col md:flex-row items-center justify-between gap-4 text-[12px] text-white/30">
+            <span>© 2026 Biztriach • AI Business Platform • Built in Lagos 🇳🇬</span>
+            <span className="flex items-center gap-4"><a href="#" className="hover:text-white/60">Privacy</a><a href="#" className="hover:text-white/60">Terms</a><a href="#" className="hover:text-white/60">Status</a></span>
+          </div>
         </div>
       </section>
-
-      {/* Footer */}
-      <footer className="py-12 border-t border-white/5 bg-slate-950 text-slate-500 text-sm">
-        <div className="max-w-7xl mx-auto px-6 flex flex-col sm:flex-row items-center justify-between gap-6">
-          <div className="flex items-center gap-2">
-            <span className="bg-blue-600 rounded p-1 flex items-center justify-center shrink-0">
-              <Bot className="w-4 h-4 text-white" />
-            </span>
-            <span className="font-outfit font-extrabold text-slate-300">
-              SupportIQ <span className="text-blue-500 font-bold">AI</span>
-            </span>
-          </div>
-          
-          <div className="flex items-center gap-8 text-slate-500 text-xs">
-            <span>&copy; {new Date().getFullYear()} SupportIQ AI. All rights reserved.</span>
-            <a href="#" className="hover:text-slate-300 transition">Privacy</a>
-            <a href="#" className="hover:text-slate-300 transition">Terms</a>
-          </div>
-        </div>
-      </footer>
     </div>
   );
 }
