@@ -112,9 +112,10 @@ export async function POST(req: Request) {
       },
     });
 
+    const isProd = process.env.NODE_ENV === "production";
     response.headers.set(
       "Set-Cookie",
-      `token=${token}; Path=/; HttpOnly; SameSite=Lax; Max-Age=604800; Secure=${process.env.NODE_ENV === "production"}`
+      `token=${token}; Path=/; HttpOnly; SameSite=Lax; Max-Age=604800${isProd ? "; Secure" : ""}`
     );
 
     return response;
