@@ -1,26 +1,22 @@
 {
   "name": "biztriach",
-  "version": "2.0.0",
+  "version": "3.0.0",
   "private": true,
-  "description": "Biztriach - AI Business Platform: Support, Sales, Inventory, WhatsApp, Landing Pages for SMEs",
+  "description": "Biztriach - AI Business Platform: Support, Sales, Inventory, WhatsApp, Landing Pages for SMEs (Firebase edition)",
   "scripts": {
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
     "type-check": "tsc --noEmit",
-    "postinstall": "prisma generate",
-    "db:push": "prisma db push",
-    "db:studio": "prisma studio",
+    "seed": "node scripts/seed-firebase.js",
     "email:test": "node scripts/test-email.js"
   },
   "dependencies": {
-    "@prisma/client": "^5.14.0",
-    "@supabase/supabase-js": "^2.45.0",
     "autoprefixer": "^10.4.19",
-    "bcryptjs": "^2.4.3",
     "clsx": "^2.1.1",
-    "jsonwebtoken": "^9.0.2",
+    "firebase": "^10.12.2",
+    "firebase-admin": "^12.1.0",
     "jszip": "^3.10.1",
     "lucide-react": "^0.379.0",
     "mammoth": "^1.7.2",
@@ -38,19 +34,13 @@
   },
   "devDependencies": {
     "@babel/runtime": "^8.0.0",
-    "@types/bcryptjs": "^2.4.6",
-    "@types/jsonwebtoken": "^9.0.6",
     "@types/node": "^20.12.12",
     "@types/nodemailer": "^6.4.14",
     "@types/react": "^18.3.3",
     "@types/react-dom": "^18.3.0",
     "eslint": "^8.57.0",
     "eslint-config-next": "^14.2.3",
-    "prisma": "^5.14.0",
     "tailwindcss-animate": "^1.0.7",
     "typescript": "^5.4.5"
-  },
-  "prisma": {
-    "seed": "node prisma/seed.js"
   }
 }

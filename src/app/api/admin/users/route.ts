@@ -1,7 +1,8 @@
 export const dynamic = "force-dynamic";
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/db";
 import { getUserFromRequest } from "@/lib/auth";
+import { firebaseAuth } from "@/lib/firebase";
+import { COL, findDocs, getDoc, updateDocData, deleteDocById } from "@/lib/firestore";
 import { sendEmail, emailTemplates } from "@/lib/email";
 
 function isAdminEmail(email: string) {
@@ -9,25 +10,39 @@ function isAdminEmail(email: string) {
   return admins.includes(email);
 }
 
-export async function GET(req: Request) {
+async function isAdmin(req: Request) {
   const user = await getUserFromRequest(req);
-  if (!user || !isAdminEmail(user.email)) return NextResponse.json({ error: "Admin only" }, { status: 403 });
+  return user && (user.role === "ADMIN" || isAdminEmail(user.email)) ? user : null;
+}
+
+/** Attach organization objects to a list of user profiles. */
+async function withOrganizations(users: any[]): Promise<any[]> {
+  const orgIds = [...new Set(users.map((u) => u.organizationId).filter(Boolean))];
+  const orgs = await Promise.all(orgIds.map((id: string) => getDoc(COL.organizations, id)));
+  const orgMap = new Map<string, any>();
+  orgIds.forEach((id: string, i: number) => {
+    const org = orgs[i];
+    if (org) orgMap.set(id, org);
+  });
+  return users.map((u) => ({ ...u, organization: u.organizationId ? orgMap.get(u.organizationId) || null : null }));
+}
+
+export async function GET(req: Request) {
+  const admin = await isAdmin(req);
+  if (!admin) return NextResponse.json({ error: "Admin only" }, { status: 403 });
 
   try {
-    const users = await prisma.user.findMany({
-      include: { organization: true },
-      orderBy: { createdAt: "desc" },
-      take: 200
-    });
+    const users = await findDocs(COL.users, { orderBy: [["createdAt", "desc"]], limit: 200 });
+    const withOrgs = await withOrganizations(users);
 
     const stats = {
-      total: users.length,
-      pending: users.filter(u => u.status === "PENDING").length,
-      approved: users.filter(u => u.status === "APPROVED").length,
-      suspended: users.filter(u => u.status === "SUSPENDED").length,
+      total: withOrgs.length,
+      pending: withOrgs.filter(u => u.status === "PENDING").length,
+      approved: withOrgs.filter(u => u.status === "APPROVED").length,
+      suspended: withOrgs.filter(u => u.status === "SUSPENDED").length,
     };
 
-    return NextResponse.json({ users, stats });
+    return NextResponse.json({ users: withOrgs, stats });
   } catch (e) {
     console.error(e);
     return NextResponse.json({ error: "Failed" }, { status: 500 });
@@ -35,8 +50,8 @@ export async function GET(req: Request) {
 }
 
 export async function POST(req: Request) {
-  const user = await getUserFromRequest(req);
-  if (!user || !isAdminEmail(user.email)) return NextResponse.json({ error: "Admin only" }, { status: 403 });
+  const admin = await isAdmin(req);
+  if (!admin) return NextResponse.json({ error: "Admin only" }, { status: 403 });
 
   try {
     const { userId, action, reason } = await req.json();
@@ -45,7 +60,15 @@ export async function POST(req: Request) {
     let updated;
     switch (action) {
       case "APPROVE":
-        updated = await prisma.user.update({ where: { id: userId }, data: { status: "APPROVED", approvedAt: new Date(), approvedBy: user.id } });
+        updated = await updateDocData(COL.users, userId, {
+          status: "APPROVED",
+          approvedAt: new Date().toISOString(),
+          approvedBy: admin.id,
+        });
+        if (!updated) return NextResponse.json({ error: "User not found" }, { status: 404 });
+        try {
+          await firebaseAuth().setCustomUserClaims(userId, { role: updated.role || "USER", status: "APPROVED" });
+        } catch (e) { console.warn("Claims update failed", e); }
         // Send approval email
         try {
           const tmpl = emailTemplates.accountApproved(updated.name);
@@ -53,19 +76,45 @@ export async function POST(req: Request) {
         } catch (e) { console.error("Approval email failed", e); }
         break;
       case "REJECT":
-        updated = await prisma.user.update({ where: { id: userId }, data: { status: "REJECTED", suspendedReason: reason } });
+        updated = await updateDocData(COL.users, userId, { status: "REJECTED", suspendedReason: reason });
+        if (!updated) return NextResponse.json({ error: "User not found" }, { status: 404 });
+        try {
+          await firebaseAuth().setCustomUserClaims(userId, { role: updated.role || "USER", status: "REJECTED" });
+        } catch (e) { console.warn("Claims update failed", e); }
         break;
       case "SUSPEND":
-        updated = await prisma.user.update({ where: { id: userId }, data: { status: "SUSPENDED", suspendedReason: reason || "Suspended by admin" } });
+        updated = await updateDocData(COL.users, userId, {
+          status: "SUSPENDED",
+          suspendedReason: reason || "Suspended by admin",
+        });
+        if (!updated) return NextResponse.json({ error: "User not found" }, { status: 404 });
+        try {
+          // Revoke live sessions + reflect status in claims
+          await firebaseAuth().revokeRefreshTokens(userId);
+          await firebaseAuth().setCustomUserClaims(userId, { role: updated.role || "USER", status: "SUSPENDED" });
+        } catch (e) { console.warn("Claims update failed", e); }
         break;
       case "REACTIVATE":
-        updated = await prisma.user.update({ where: { id: userId }, data: { status: "APPROVED", suspendedReason: null } });
+        updated = await updateDocData(COL.users, userId, { status: "APPROVED", suspendedReason: null });
+        if (!updated) return NextResponse.json({ error: "User not found" }, { status: 404 });
+        try {
+          await firebaseAuth().setCustomUserClaims(userId, { role: updated.role || "USER", status: "APPROVED" });
+        } catch (e) { console.warn("Claims update failed", e); }
         break;
       case "DELETE":
-        await prisma.user.delete({ where: { id: userId } });
+        await deleteDocById(COL.users, userId);
+        try {
+          await firebaseAuth().deleteUser(userId);
+        } catch (e) {
+          console.warn("Firebase Auth user deletion failed (may already be gone):", e);
+        }
         return NextResponse.json({ success: true, deleted: true });
       case "MAKE_ADMIN":
-        updated = await prisma.user.update({ where: { id: userId }, data: { role: "ADMIN" } });
+        updated = await updateDocData(COL.users, userId, { role: "ADMIN" });
+        if (!updated) return NextResponse.json({ error: "User not found" }, { status: 404 });
+        try {
+          await firebaseAuth().setCustomUserClaims(userId, { role: "ADMIN", status: updated.status || "PENDING" });
+        } catch (e) { console.warn("Claims update failed", e); }
         break;
       default:
         return NextResponse.json({ error: "Invalid action" }, { status: 400 });

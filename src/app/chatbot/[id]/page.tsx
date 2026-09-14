@@ -1,5 +1,5 @@
 import { notFound } from "next/navigation";
-import { prisma } from "@/lib/db";
+import { COL, getDoc } from "@/lib/firestore";
 import ChatbotWindow from "@/components/ChatbotWindow";
 
 interface PageProps {
@@ -8,11 +8,10 @@ interface PageProps {
   };
 }
 
+export const dynamic = "force-dynamic";
+
 export async function generateMetadata({ params }: PageProps) {
-  const chatbot = await prisma.chatbot.findUnique({
-    where: { id: params.id },
-    select: { name: true },
-  });
+  const chatbot = await getDoc<{ name: string }>(COL.chatbots, params.id);
 
   if (!chatbot) {
     return {
@@ -26,9 +25,7 @@ export async function generateMetadata({ params }: PageProps) {
 }
 
 export default async function ChatbotPage({ params }: PageProps) {
-  const chatbot = await prisma.chatbot.findUnique({
-    where: { id: params.id },
-  });
+  const chatbot = await getDoc(COL.chatbots, params.id);
 
   if (!chatbot) {
     notFound();
@@ -36,7 +33,7 @@ export default async function ChatbotPage({ params }: PageProps) {
 
   return (
     <div className="w-full h-screen overflow-hidden">
-      <ChatbotWindow chatbot={chatbot} />
+      <ChatbotWindow chatbot={chatbot as any} />
     </div>
   );
 }

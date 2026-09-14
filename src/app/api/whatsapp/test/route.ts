@@ -1,8 +1,8 @@
 export const dynamic = "force-dynamic";
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/db";
 import { getUserFromRequest } from "@/lib/auth";
 import { decryptKey } from "@/lib/apiKeys";
+import { COL, findUniqueBy, findDocs, createDoc } from "@/lib/firestore";
 
 export async function POST(req: Request) {
   const user = await getUserFromRequest(req);
@@ -12,7 +12,7 @@ export async function POST(req: Request) {
     const { to, message } = await req.json();
     if (!to || !message) return NextResponse.json({ error: "to and message required" }, { status: 400 });
 
-    const account = await prisma.whatsAppAccount.findUnique({ where: { organizationId: user.organizationId } });
+    const account = await findUniqueBy<any>(COL.whatsappAccounts, "organizationId", user.organizationId);
     if (!account || !account.phoneNumberId || !account.accessToken) {
       return NextResponse.json({ error: "WhatsApp account not connected. Please connect in /dashboard/whatsapp" }, { status: 400 });
     }
@@ -41,23 +41,28 @@ export async function POST(req: Request) {
     }
 
     // Save as outbound message
-    let conversation = await prisma.whatsAppConversation.findFirst({
-      where: { organizationId: user.organizationId, phoneNumber: cleanTo }
-    });
+    let conversation = await findDocs<any>(COL.whatsappConversations, {
+      where: [["organizationId", "==", user.organizationId], ["phoneNumber", "==", cleanTo]],
+      limit: 1,
+    }).then(r => r[0]);
 
     if (!conversation) {
-      conversation = await prisma.whatsAppConversation.create({
-        data: { organizationId: user.organizationId, phoneNumber: cleanTo, customerName: to, status: "ACTIVE" }
+      conversation = await createDoc(COL.whatsappConversations, {
+        organizationId: user.organizationId,
+        phoneNumber: cleanTo,
+        customerName: to,
+        status: "ACTIVE",
       });
     }
 
-    await prisma.whatsAppMessage.create({
-      data: {
-        conversationId: conversation.id,
-        direction: "OUTBOUND",
-        type: "text",
-        content: message
-      }
+    await createDoc(COL.whatsappMessages, {
+      conversationId: conversation.id,
+      direction: "OUTBOUND",
+      type: "text",
+      content: message,
+      isBusinessOp: false,
+      parsedData: null,
+      aiResponse: null,
     });
 
     return NextResponse.json({ success: true, messageId: data.messages?.[0]?.id, data });

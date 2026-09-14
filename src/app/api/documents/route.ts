@@ -1,9 +1,18 @@
 export const dynamic = "force-dynamic";
 
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/db";
 import { getUserFromRequest } from "@/lib/auth";
 import { extractTextFromFile, splitTextIntoChunks, generateEmbedding, generateEmbeddingsBatch } from "@/lib/rag";
+import {
+  COL,
+  getDoc,
+  createDoc,
+  updateDocData,
+  countDocs,
+  createManyDocs,
+  findDocs,
+} from "@/lib/firestore";
+import { storageBucket } from "@/lib/firebase";
 
 // Isolated helper for reading and buffer allocation
 async function parseUploadedFile(file: File): Promise<Buffer> {
@@ -26,7 +35,7 @@ async function ingestDocumentChunks(documentId: string, rawText: string, fileSiz
   if (totalChunksCount > 10000) {
     throw new Error(`Document contains too many text chunks (${totalChunksCount}). Maximum allowed limit is 10,000 chunks.`);
   }
-  
+
   // Cap at 150 chunks for safety in serverless environments
   const chunks = allChunks.slice(0, 150);
   const processedChunksCount = chunks.length;
@@ -41,7 +50,7 @@ async function ingestDocumentChunks(documentId: string, rawText: string, fileSiz
   // Process chunks in small batches of 15 to keep active heap footprint minimal
   for (let i = 0; i < chunks.length; i += BATCH_SIZE) {
     const batch = chunks.slice(i, i + BATCH_SIZE);
-    
+
     // 1. Generate embeddings in a single batch API call for the sub-array
     const batchContents = batch.map(c => c.content);
     let vectors: number[][];
@@ -64,13 +73,12 @@ async function ingestDocumentChunks(documentId: string, rawText: string, fileSiz
       content: chunk.content,
       pageNumber: chunk.pageNumber,
       embedding: JSON.stringify(vectors[idx]),
+      tokenCount: 0,
     }));
 
     // 3. Batch insert the sub-array immediately
     if (chunksData.length > 0) {
-      await prisma.documentChunk.createMany({
-        data: chunksData,
-      });
+      await createManyDocs(COL.documentChunks, chunksData);
     }
 
     processedCount += batch.length;
@@ -79,9 +87,9 @@ async function ingestDocumentChunks(documentId: string, rawText: string, fileSiz
     const heapUsedMB = Math.round(process.memoryUsage().heapUsed / 1024 / 1024);
     console.log(`[RAG INGESTION] Progress: ${processedCount}/${processedChunksCount} chunks stored. Current Heap: ${heapUsedMB} MB`);
   }
-  
+
   const duration = Date.now() - startTime;
-  const avgChunkSize = chunks.length > 0 ? Math.round(chunks.reduce((acc, c) => acc + c.content.length, 0) / chunks.length) : 0;
+  const avgChunkSize = processedChunksCount > 0 ? Math.round(rawText.length / processedChunksCount) : 0;
   const batchCount = Math.ceil(chunks.length / BATCH_SIZE);
 
   // Observability Ingestion Report Logs
@@ -103,6 +111,27 @@ async function ingestDocumentChunks(documentId: string, rawText: string, fileSiz
   }
 }
 
+/** Persist the original uploaded file to Firebase Storage (best-effort). */
+async function saveOriginalFile(
+  organizationId: string,
+  documentId: string,
+  fileName: string,
+  buffer: Buffer
+): Promise<string | null> {
+  try {
+    const bucket = storageBucket();
+    if (!bucket) return null;
+    const safeName = fileName.replace(/[^a-zA-Z0-9._-]/g, "_");
+    const path = `organizations/${organizationId}/documents/${documentId}/${safeName}`;
+    const file = bucket.file(path);
+    await file.save(buffer, { resumable: false });
+    return path;
+  } catch (e) {
+    console.warn("[STORAGE] Failed to persist original file:", e);
+    return null;
+  }
+}
+
 export async function GET(req: Request) {
   const user = await getUserFromRequest(req);
   if (!user || !user.organizationId) {
@@ -118,25 +147,34 @@ export async function GET(req: Request) {
 
   try {
     // Verify chatbot ownership
-    const chatbot = await prisma.chatbot.findFirst({
-      where: { id: chatbotId, organizationId: user.organizationId },
-    });
-
-    if (!chatbot) {
+    const chatbot = await getDoc(COL.chatbots, chatbotId);
+    if (!chatbot || chatbot.organizationId !== user.organizationId) {
       return NextResponse.json({ error: "Chatbot not found or access denied" }, { status: 404 });
     }
 
-    const documents = await prisma.document.findMany({
-      where: { chatbotId },
-      include: { _count: { select: { chunks: true } } },
-      orderBy: { createdAt: "desc" },
-    });
+    const documents = await findDocsOrdered(COL.documents, chatbotId);
 
-    return NextResponse.json(documents);
+    // Attach chunk counts (replaces Prisma's include: { _count: { chunks } })
+    const withCounts = await Promise.all(
+      documents.map(async (d: any) => ({
+        ...d,
+        _count: { chunks: await countDocs(COL.documentChunks, { where: [["documentId", "==", d.id]] }) },
+      }))
+    );
+
+    return NextResponse.json(withCounts);
   } catch (error) {
     console.error("Error listing documents:", error);
     return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
   }
+}
+
+async function findDocsOrdered(collection: string, chatbotId: string) {
+  const { findDocs } = await import("@/lib/firestore");
+  return findDocs(collection, {
+    where: [["chatbotId", "==", chatbotId]],
+    orderBy: [["createdAt", "desc"]],
+  });
 }
 
 export async function POST(req: Request) {
@@ -155,11 +193,8 @@ export async function POST(req: Request) {
     }
 
     // Verify chatbot ownership
-    const chatbot = await prisma.chatbot.findFirst({
-      where: { id: chatbotId, organizationId: user.organizationId },
-    });
-
-    if (!chatbot) {
+    const chatbot = await getDoc(COL.chatbots, chatbotId);
+    if (!chatbot || chatbot.organizationId !== user.organizationId) {
       return NextResponse.json({ error: "Chatbot not found or access denied" }, { status: 404 });
     }
 
@@ -185,29 +220,34 @@ export async function POST(req: Request) {
       );
     }
 
+    // Read the buffer once — used for both Storage persistence and text extraction
+    let buffer: Buffer = await parseUploadedFile(file);
+
     // Create document record in PROCESSING state
-    const document = await prisma.document.create({
-      data: {
-        title: fileName,
-        chatbotId,
-        fileType: fileExtension,
-        status: "PROCESSING",
-        size: fileSize,
-      },
+    const document = await createDoc(COL.documents, {
+      title: fileName,
+      chatbotId,
+      organizationId: user.organizationId,
+      fileType: fileExtension,
+      status: "PROCESSING",
+      size: fileSize,
+      chunkCount: 0,
+      sourceType: "upload",
+      sourceUrl: null,
     });
 
     console.log(`[DOCUMENT UPLOAD] Created document ${document.id} in PROCESSING state. Size: ${(fileSize / 1024 / 1024).toFixed(2)} MB`);
 
+    // Persist the original file to Firebase Storage (best-effort, non-fatal)
+    const storagePath = await saveOriginalFile(user.organizationId, document.id, fileName, buffer);
+
     // Start RAG processing pipeline using isolated scopes
     try {
-      // 1. Read binary buffer inside an isolated function scope
-      let buffer: Buffer | null = await parseUploadedFile(file);
-
-      // 2. Extract text inside an isolated function scope
+      // 1. Extract text inside an isolated function scope
       let rawText: string | null = await extractTextFromBuffer(buffer, fileExtension);
 
       // Nullify buffer reference immediately to release memory before chunking/embeddings
-      buffer = null;
+      buffer = null as unknown as Buffer;
 
       if (!rawText || rawText.trim().length === 0) {
         rawText = null;
@@ -222,27 +262,25 @@ export async function POST(req: Request) {
         throw new Error(`Extracted text is too large (${(textLength / 1024 / 1024).toFixed(2)} MB). Maximum limit is 5,000,000 characters.`);
       }
 
-      // 3. Process chunking, embedding batching, and database batch write in a separate call
+      // 2. Process chunking, embedding batching, and database batch write in a separate call
       await ingestDocumentChunks(document.id, rawText, fileSize);
 
       // Nullify rawText reference to clear stack memory
       rawText = null;
 
       // Update document status to TRAINED (Completed)
-      const updatedDoc = await prisma.document.update({
-        where: { id: document.id },
-        data: { status: "TRAINED" },
+      const updatedDoc = await updateDocData(COL.documents, document.id, {
+        status: "TRAINED",
+        chunkCount: await countDocs(COL.documentChunks, { where: [["documentId", "==", document.id]] }),
+        storagePath,
       });
 
       return NextResponse.json(updatedDoc);
     } catch (processError: any) {
       console.error(`RAG Processing failed for document ${document.id}:`, processError);
-      
+
       // Update document to FAILED
-      await prisma.document.update({
-        where: { id: document.id },
-        data: { status: "FAILED" },
-      });
+      await updateDocData(COL.documents, document.id, { status: "FAILED", storagePath });
 
       return NextResponse.json(
         { error: processError.message || "Failed to process document content" },

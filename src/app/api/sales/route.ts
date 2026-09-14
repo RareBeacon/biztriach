@@ -1,7 +1,16 @@
 export const dynamic = "force-dynamic";
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/db";
 import { getUserFromRequest } from "@/lib/auth";
+import {
+  COL,
+  findDocs,
+  findUniqueBy,
+  getDoc,
+  createDoc,
+  createManyDocs,
+  updateDocData,
+  FieldValue,
+} from "@/lib/firestore";
 
 export async function GET(req: Request) {
   const user = await getUserFromRequest(req);
@@ -10,13 +19,22 @@ export async function GET(req: Request) {
   const limit = parseInt(searchParams.get("limit") || "50");
 
   try {
-    const sales = await prisma.sale.findMany({
-      where: { organizationId: user.organizationId },
-      include: { items: true, customer: true },
-      orderBy: { createdAt: "desc" },
-      take: Math.min(limit, 100)
+    const sales = await findDocs<any>(COL.sales, {
+      where: [["organizationId", "==", user.organizationId]],
+      orderBy: [["createdAt", "desc"]],
+      limit: Math.min(limit, 100),
     });
-    return NextResponse.json(sales);
+
+    // Attach items + customer (replaces Prisma include)
+    const withDetails = await Promise.all(
+      sales.map(async (sale) => ({
+        ...sale,
+        items: await findDocs(COL.saleItems, { where: [["saleId", "==", sale.id]] }),
+        customer: sale.customerId ? await getDoc(COL.customers, sale.customerId) : null,
+      }))
+    );
+
+    return NextResponse.json(withDetails);
   } catch (e) {
     console.error(e);
     return NextResponse.json({ error: "Failed to fetch sales" }, { status: 500 });
@@ -36,23 +54,34 @@ export async function POST(req: Request) {
 
     // Calculate totals and update inventory
     let totalAmount = 0, totalProfit = 0;
-    const saleNumber = `SALE-${new Date().getFullYear()}-${Math.random().toString(36).slice(2,8).toUpperCase()}`;
+    const saleNumber = `SALE-${new Date().getFullYear()}-${Math.random().toString(36).slice(2, 8).toUpperCase()}`;
 
     // Resolve customer if name provided but no ID
     let finalCustomerId = customerId;
     if (!finalCustomerId && customerName) {
-      const existing = await prisma.customer.findFirst({ where: { organizationId: user.organizationId, name: customerName } });
-      if (existing) finalCustomerId = existing.id;
+      const existing = await findDocs<any>(COL.customers, {
+        where: [["organizationId", "==", user.organizationId], ["name", "==", customerName]],
+        limit: 1,
+      });
+      if (existing[0]) finalCustomerId = existing[0].id;
       else {
-        const newCust = await prisma.customer.create({ data: { organizationId: user.organizationId, name: customerName } });
+        const newCust = await createDoc(COL.customers, {
+          organizationId: user.organizationId,
+          name: customerName,
+          email: null,
+          phone: null,
+          address: null,
+          totalSpent: 0,
+          totalOrders: 0,
+        });
         finalCustomerId = newCust.id;
       }
     }
 
     // Process items
-    const saleItemsData = [];
+    const saleItemsData: any[] = [];
     for (const item of items) {
-      const product = item.productId ? await prisma.product.findUnique({ where: { id: item.productId } }) : null;
+      const product = item.productId ? await getDoc<any>(COL.products, item.productId) : null;
       const qty = parseInt(item.quantity) || 1;
       const unitPrice = parseFloat(item.unitPrice) || product?.sellingPrice || 0;
       const total = qty * unitPrice;
@@ -67,43 +96,51 @@ export async function POST(req: Request) {
         quantity: qty,
         unitPrice,
         totalPrice: total,
-        profit
+        profit,
       });
 
       // Update inventory
       if (product) {
-        await prisma.product.update({ where: { id: product.id }, data: { quantity: { decrement: qty } } });
+        await updateDocData(COL.products, product.id, {
+          quantity: FieldValue.increment(-qty),
+        });
       }
     }
 
-    const sale = await prisma.sale.create({
-      data: {
-        organizationId: user.organizationId,
-        customerId: finalCustomerId || null,
-        saleNumber,
-        totalAmount,
-        profit: totalProfit,
-        paymentMethod: paymentMethod || "cash",
-        channel: channel || "manual",
-        notes,
-        items: { create: saleItemsData }
-      },
-      include: { items: true, customer: true }
+    const sale = await createDoc(COL.sales, {
+      organizationId: user.organizationId,
+      customerId: finalCustomerId || null,
+      saleNumber,
+      totalAmount,
+      discount: 0,
+      profit: totalProfit,
+      paymentMethod: paymentMethod || "cash",
+      paymentStatus: "paid",
+      channel: channel || "manual",
+      notes: notes || null,
     });
+
+    // Create sale items (denormalized organizationId for fast reporting)
+    await createManyDocs(
+      COL.saleItems,
+      saleItemsData.map(si => ({ ...si, saleId: sale.id, organizationId: user.organizationId }))
+    );
 
     // Update customer stats
     if (finalCustomerId) {
-      await prisma.customer.update({
-        where: { id: finalCustomerId },
-        data: {
-          totalSpent: { increment: totalAmount },
-          totalOrders: { increment: 1 },
-          lastPurchaseAt: new Date()
-        }
+      await updateDocData(COL.customers, finalCustomerId, {
+        totalSpent: FieldValue.increment(totalAmount),
+        totalOrders: FieldValue.increment(1),
+        lastPurchaseAt: new Date().toISOString(),
       });
     }
 
-    return NextResponse.json(sale);
+    // Response parity with the old `include: { items, customer }`
+    return NextResponse.json({
+      ...sale,
+      items: await findDocs(COL.saleItems, { where: [["saleId", "==", sale.id]] }),
+      customer: finalCustomerId ? await getDoc(COL.customers, finalCustomerId) : null,
+    });
   } catch (e) {
     console.error("Sale creation failed", e);
     return NextResponse.json({ error: "Failed to create sale" }, { status: 500 });

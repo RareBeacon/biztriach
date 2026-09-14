@@ -2,10 +2,17 @@ export const dynamic = "force-dynamic";
 export const maxDuration = 30;
 
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/db";
 import { parseBusinessMessage, formatNaira } from "@/lib/businessParser";
 import { generateEmbedding, retrieveRelevantChunks } from "@/lib/rag";
 import { decryptKey } from "@/lib/apiKeys";
+import {
+  COL,
+  findDocs,
+  findUniqueBy,
+  createDoc,
+  updateDocData,
+  FieldValue,
+} from "@/lib/firestore";
 
 const VERIFY_TOKEN_FALLBACK = "biztriach_verify";
 const VERIFY_TOKEN_ENV = process.env.WHATSAPP_VERIFY_TOKEN || "biztriach_verify";
@@ -30,7 +37,7 @@ export async function GET(req: Request) {
   let validTokens: string[] = [VERIFY_TOKEN_FALLBACK, VERIFY_TOKEN_ENV, "biztriach", "supportai", (process.env.WHATSAPP_VERIFY_TOKEN || "")].filter(Boolean);
 
   try {
-    const accounts = await prisma.whatsAppAccount.findMany({ select: { verifyToken: true } }).catch(() => [] as any);
+    const accounts = await findDocs<any>(COL.whatsappAccounts, {}).catch(() => [] as any);
     if (accounts && accounts.length > 0) {
       const dbTokens = accounts.map((a: any) => a.verifyToken).filter(Boolean) as string[];
       validTokens = [...validTokens, ...dbTokens];
@@ -65,12 +72,12 @@ export async function GET(req: Request) {
 export async function POST(req: Request) {
   try {
     const body = await req.json();
-    
+
     // Meta sends different payload types - handle all
     const entry = body.entry?.[0];
     const changes = entry?.changes?.[0];
     const value = changes?.value;
-    
+
     // Status updates (delivered, read) - ignore but return ok
     if (value?.statuses) {
       console.log("[WhatsApp] Status update:", JSON.stringify(value.statuses).slice(0, 200));
@@ -92,11 +99,11 @@ export async function POST(req: Request) {
       const from = msg.from; // Customer phone number - ANY number can connect
       const messageId = msg.id;
       const timestamp = msg.timestamp;
-      
+
       // Extract text from various message types
       let text = "";
       const type = msg.type || "text";
-      
+
       if (type === "text") text = msg.text?.body || "";
       else if (type === "button") text = msg.button?.text || msg.button?.payload || "";
       else if (type === "interactive") text = msg.interactive?.button_reply?.title || msg.interactive?.list_reply?.title || "";
@@ -114,33 +121,42 @@ export async function POST(req: Request) {
       // ── Find organization by business phoneNumberId (ANY business number can be connected)
       const phoneNumberId = metadata?.phone_number_id;
       const displayPhone = metadata?.display_phone_number;
-      
+
       let account = null;
-      
+
       try {
         // Primary: find by phoneNumberId (exact match for connected business number)
         if (phoneNumberId) {
-          account = await prisma.whatsAppAccount.findFirst({ where: { phoneNumberId } });
+          const matches = await findDocs<any>(COL.whatsappAccounts, {
+            where: [["phoneNumberId", "==", phoneNumberId]],
+            limit: 1,
+          });
+          account = matches[0] || null;
           if (account) console.log(`[WhatsApp] ✅ Matched account by phoneNumberId ${phoneNumberId} → org ${account.organizationId}`);
         }
-        
+
         // Secondary: find by display phone
         if (!account && displayPhone) {
-          // Search all accounts and match display? For MVP, try find any connected
-          const allConnected = await prisma.whatsAppAccount.findMany({ where: { isConnected: true } });
           // If only 1 connected account exists, use it (single-business setup)
+          const allConnected = await findDocs<any>(COL.whatsappAccounts, {
+            where: [["isConnected", "==", true]],
+          });
           if (allConnected.length === 1) {
             account = allConnected[0];
             console.log(`[WhatsApp] ⚠️ phoneNumberId not matched, using single connected account fallback`);
           }
         }
-        
+
         // Tertiary: fallback to first connected account (for single-business MVP where only one number connected)
         if (!account) {
-          const anyConnected = await prisma.whatsAppAccount.findFirst({ where: { isConnected: true }, orderBy: { createdAt: "asc" } });
-          if (anyConnected) {
-            account = anyConnected;
-            console.log(`[WhatsApp] ⚠️ Using fallback account ${anyConnected.id} for org ${anyConnected.organizationId}`);
+          const anyConnected = await findDocs<any>(COL.whatsappAccounts, {
+            where: [["isConnected", "==", true]],
+            orderBy: [["createdAt", "asc"]],
+            limit: 1,
+          });
+          if (anyConnected[0]) {
+            account = anyConnected[0];
+            console.log(`[WhatsApp] ⚠️ Using fallback account ${anyConnected[0].id} for org ${anyConnected[0].organizationId}`);
           }
         }
 
@@ -155,21 +171,21 @@ export async function POST(req: Request) {
         console.log(`[WhatsApp] Routing to organization: ${orgId}`);
 
         // ── Find or create conversation for ANY customer number
-        let conversation = await prisma.whatsAppConversation.findFirst({
-          where: { organizationId: orgId, phoneNumber: from },
-          orderBy: { updatedAt: "desc" }
+        let conversations = await findDocs<any>(COL.whatsappConversations, {
+          where: [["organizationId", "==", orgId], ["phoneNumber", "==", from]],
+          orderBy: [["updatedAt", "desc"]],
+          limit: 1,
         });
+        let conversation = conversations[0] || null;
 
         const contactName = contacts?.[0]?.profile?.name || from;
 
         if (!conversation) {
-          conversation = await prisma.whatsAppConversation.create({
-            data: { 
-              organizationId: orgId, 
-              phoneNumber: from, 
-              customerName: contactName, 
-              status: "ACTIVE" 
-            }
+          conversation = await createDoc(COL.whatsappConversations, {
+            organizationId: orgId,
+            phoneNumber: from,
+            customerName: contactName,
+            status: "ACTIVE",
           });
           console.log(`[WhatsApp] ➕ Created new conversation for ${from} (${contactName})`);
         }
@@ -201,8 +217,6 @@ export async function POST(req: Request) {
           if (ownerNumbers.some(on => cleanFrom.includes(on.replace(/[^0-9]/g, "")) || on.replace(/[^0-9]/g, "").includes(cleanFrom))) {
             isOwner = true;
           }
-          // Also treat as owner if number is in customer's organization admin list (first org admin's phone could be owner)
-          // For MVP: If parsed is business op with high confidence, treat as owner action even if not in list (owner can be any number sending business ops)
           console.log(`[WhatsApp] Sender ${from} isOwner=${isOwner} ownerNumbers=${JSON.stringify(ownerNumbers)}`);
         } catch (e) {
           console.warn("[WhatsApp] Owner check failed", e);
@@ -218,13 +232,12 @@ export async function POST(req: Request) {
             const threshold = isOwner ? 0.5 : 0.75;
             if (parsed.type !== "UNKNOWN" && parsed.confidence >= threshold) {
               // Extra safety: If not owner and confidence <0.85, double-check if message really looks like business op (contains Sold/Bought/Paid)
-              // Customers rarely say "Sold 5 bags..." - that's owner language
               if (!isOwner && parsed.confidence < 0.85 && !/(sold|bought|buy|paid rent|paid.*₦|received payment)/i.test(text)) {
                 console.log(`[WhatsApp] Message looks like business op but sender ${from} not owner and confidence ${parsed.confidence} <0.85 and no strong business keywords - treating as support query`);
               } else {
                 isBusinessOp = true;
                 parsedData = parsed;
-                console.log(`[WhatsApp] 💼 Business Op Detected: ${parsed.type} (${Math.round(parsed.confidence*100)}%) from ${isOwner ? "OWNER" : "CUSTOMER?"} ${from}`, parsed);
+                console.log(`[WhatsApp] 💼 Business Op Detected: ${parsed.type} (${Math.round(parsed.confidence * 100)}%) from ${isOwner ? "OWNER" : "CUSTOMER?"} ${from}`, parsed);
 
                 // Auto-process business operations - updates inventory, sales, expenses
                 try {
@@ -241,31 +254,30 @@ export async function POST(req: Request) {
         }
 
         // ── Save inbound message from ANY customer number
-        await prisma.whatsAppMessage.create({
-          data: {
-            conversationId: conversation.id,
-            direction: "INBOUND",
-            type,
-            content: text,
-            isBusinessOp,
-            parsedData: parsedData ? JSON.stringify(parsedData) : null
-          }
+        await createDoc(COL.whatsappMessages, {
+          conversationId: conversation.id,
+          direction: "INBOUND",
+          type,
+          content: text,
+          isBusinessOp,
+          parsedData: parsedData ? JSON.stringify(parsedData) : null,
+          aiResponse: null,
         });
 
         // ── Generate AI reply if autoReply enabled (AI acts well for both support + business ops)
         if (account.autoReply) {
           try {
             const aiReply = await generateWhatsAppAIReply(orgId, text, conversation.id, from, isBusinessOp ? parsedData : null);
-            
+
             // Save outbound
-            await prisma.whatsAppMessage.create({
-              data: {
-                conversationId: conversation.id,
-                direction: "OUTBOUND",
-                type: "text",
-                content: aiReply,
-                aiResponse: aiReply
-              }
+            await createDoc(COL.whatsappMessages, {
+              conversationId: conversation.id,
+              direction: "OUTBOUND",
+              type: "text",
+              content: aiReply,
+              isBusinessOp: false,
+              parsedData: null,
+              aiResponse: aiReply,
             });
 
             // Send via Meta Cloud API if credentials present
@@ -282,7 +294,7 @@ export async function POST(req: Request) {
             }
 
             // Update conversation timestamp
-            await prisma.whatsAppConversation.update({ where: { id: conversation.id }, data: { updatedAt: new Date() } });
+            await updateDocData(COL.whatsappConversations, conversation.id, {});
 
           } catch (aiError) {
             console.error("[WhatsApp] AI reply generation failed", aiError);
@@ -290,7 +302,7 @@ export async function POST(req: Request) {
           }
         } else {
           console.log("[WhatsApp] Auto-reply disabled for account", account.id);
-          await prisma.whatsAppConversation.update({ where: { id: conversation.id }, data: { updatedAt: new Date() } });
+          await updateDocData(COL.whatsappConversations, conversation.id, {});
         }
 
       } catch (msgError) {
@@ -313,63 +325,71 @@ export async function POST(req: Request) {
 // ────────────────────────────────────────────────────────────────────────────
 // BUSINESS OPERATION AUTO-PROCESSING (Core Biztriach USP)
 // ────────────────────────────────────────────────────────────────────────────
+async function findProductByName(orgId: string, nameQuery: string): Promise<any | null> {
+  // Firestore has no "contains" — fetch org products and match in JS
+  const products = await findDocs<any>(COL.products, { where: [["organizationId", "==", orgId]] });
+  const q = (nameQuery || "").toLowerCase();
+  return products.find(p => (p.name || "").toLowerCase().includes(q)) || null;
+}
+
 async function processBusinessOperation(orgId: string, parsed: any, customerPhone: string) {
   if (parsed.type === "SALE") {
     // Find or create product
     let product = null;
     if (parsed.product) {
-      product = await prisma.product.findFirst({ 
-        where: { organizationId: orgId, name: { contains: parsed.product, mode: "insensitive" } } 
-      });
+      product = await findProductByName(orgId, parsed.product);
     }
-    
+
     if (!product && parsed.product) {
       try {
-        product = await prisma.product.create({
-          data: { 
-            organizationId: orgId, 
-            name: parsed.product, 
-            sellingPrice: parsed.unitPrice || parsed.amount || 0, 
-            costPrice: (parsed.unitPrice || parsed.amount || 0) * 0.75, 
-            quantity: 100 
-          }
+        product = await createDoc(COL.products, {
+          organizationId: orgId,
+          name: parsed.product,
+          sellingPrice: parsed.unitPrice || parsed.amount || 0,
+          costPrice: (parsed.unitPrice || parsed.amount || 0) * 0.75,
+          quantity: 100,
+          sku: `SKU-${Math.random().toString(36).slice(2, 8).toUpperCase()}`,
+          description: null,
+          categoryId: null,
+          lowStockThreshold: 5,
         });
         console.log(`[BizOp SALE] Created new product ${product.name}`);
       } catch {}
     }
 
-    const saleNumber = `WA-${Date.now()}-${Math.random().toString(36).slice(2,5).toUpperCase()}`;
+    const saleNumber = `WA-${Date.now()}-${Math.random().toString(36).slice(2, 5).toUpperCase()}`;
     const totalAmount = parsed.totalAmount || parsed.amount || 0;
     const qty = parsed.quantity || 1;
 
     try {
-      const sale = await prisma.sale.create({
-        data: {
-          organizationId: orgId,
-          saleNumber,
-          totalAmount,
-          profit: totalAmount * 0.25,
-          channel: "whatsapp",
-          paymentMethod: parsed.paymentMethod || "cash",
-          notes: `WhatsApp from ${customerPhone}: ${parsed.raw}`,
-          items: {
-            create: [{
-              productId: product?.id || null,
-              productName: product?.name || parsed.product || "Product",
-              quantity: qty,
-              unitPrice: parsed.unitPrice || totalAmount / qty || totalAmount,
-              totalPrice: totalAmount,
-              profit: totalAmount * 0.25
-            }]
-          }
-        }
+      const sale = await createDoc(COL.sales, {
+        organizationId: orgId,
+        customerId: null,
+        saleNumber,
+        totalAmount,
+        discount: 0,
+        profit: totalAmount * 0.25,
+        channel: "whatsapp",
+        paymentMethod: parsed.paymentMethod || "cash",
+        paymentStatus: "paid",
+        notes: `WhatsApp from ${customerPhone}: ${parsed.raw}`,
+      });
+
+      await createDoc(COL.saleItems, {
+        saleId: sale.id,
+        organizationId: orgId,
+        productId: product?.id || null,
+        productName: product?.name || parsed.product || "Product",
+        quantity: qty,
+        unitPrice: parsed.unitPrice || totalAmount / qty || totalAmount,
+        totalPrice: totalAmount,
+        profit: totalAmount * 0.25,
       });
       console.log(`[BizOp SALE] Created sale ${sale.saleNumber} ₦${totalAmount}`);
 
       if (product && qty) {
-        await prisma.product.update({ 
-          where: { id: product.id }, 
-          data: { quantity: { decrement: qty } } 
+        await updateDocData(COL.products, product.id, {
+          quantity: FieldValue.increment(-qty),
         }).catch(() => {});
       }
     } catch (e) {
@@ -380,26 +400,23 @@ async function processBusinessOperation(orgId: string, parsed: any, customerPhon
     try {
       let product = null;
       if (parsed.product) {
-        product = await prisma.product.findFirst({ 
-          where: { organizationId: orgId, name: { contains: parsed.product, mode: "insensitive" } } 
-        });
+        product = await findProductByName(orgId, parsed.product);
       }
       if (product) {
-        await prisma.product.update({ 
-          where: { id: product.id }, 
-          data: { quantity: { increment: parsed.quantity || 0 } } 
+        await updateDocData(COL.products, product.id, {
+          quantity: FieldValue.increment(parsed.quantity || 0),
         });
         console.log(`[BizOp PURCHASE] Increased ${product.name} by ${parsed.quantity}`);
       }
-      await prisma.expense.create({
-        data: { 
-          organizationId: orgId, 
-          title: `Purchase: ${parsed.product || "Stock"}`, 
-          amount: parsed.totalAmount || parsed.amount || 0, 
-          description: parsed.raw, 
-          paymentMethod: "cash", 
-          date: new Date() 
-        }
+      await createDoc(COL.expenses, {
+        organizationId: orgId,
+        title: `Purchase: ${parsed.product || "Stock"}`,
+        amount: parsed.totalAmount || parsed.amount || 0,
+        description: parsed.raw,
+        paymentMethod: "cash",
+        receiptUrl: null,
+        categoryId: null,
+        date: new Date().toISOString(),
       });
     } catch (e) {
       console.error("[BizOp PURCHASE] Failed", e);
@@ -407,15 +424,15 @@ async function processBusinessOperation(orgId: string, parsed: any, customerPhon
 
   } else if (parsed.type === "EXPENSE") {
     try {
-      await prisma.expense.create({
-        data: { 
-          organizationId: orgId, 
-          title: parsed.desc?.slice(0, 100) || `Expense: ${parsed.amount}`, 
-          amount: parsed.totalAmount || parsed.amount || 0, 
-          description: parsed.raw, 
-          paymentMethod: "cash", 
-          date: new Date() 
-        }
+      await createDoc(COL.expenses, {
+        organizationId: orgId,
+        title: parsed.desc?.slice(0, 100) || `Expense: ${parsed.amount}`,
+        amount: parsed.totalAmount || parsed.amount || 0,
+        description: parsed.raw,
+        paymentMethod: "cash",
+        receiptUrl: null,
+        categoryId: null,
+        date: new Date().toISOString(),
       });
       console.log(`[BizOp EXPENSE] Logged ₦${parsed.amount}`);
     } catch (e) {
@@ -430,14 +447,14 @@ async function processBusinessOperation(orgId: string, parsed: any, customerPhon
 async function generateWhatsAppAIReply(orgId: string, message: string, conversationId: string, customerPhone: string, businessOp: any): Promise<string> {
   try {
     // Find chatbot + business profile for personalization
-    const chatbot = await prisma.chatbot.findFirst({ 
-      where: { organizationId: orgId }, 
-      orderBy: { createdAt: "asc" } 
+    const chatbots = await findDocs<any>(COL.chatbots, {
+      where: [["organizationId", "==", orgId]],
+      orderBy: [["createdAt", "asc"]],
+      limit: 1,
     });
-    
-    const businessProfile = await prisma.businessProfile.findFirst({
-      where: { organizationId: orgId }
-    }).catch(() => null);
+    const chatbot = chatbots[0] || null;
+
+    const businessProfile = await findUniqueBy<any>(COL.businessProfiles, "organizationId", orgId).catch(() => null);
 
     const businessName = businessProfile?.businessName || chatbot?.name || "Biztriach Business";
     const businessTone = businessProfile?.tone || "professional and friendly";
@@ -465,11 +482,27 @@ async function generateWhatsAppAIReply(orgId: string, message: string, conversat
     let context = "";
     try {
       const queryVector = await generateEmbedding(message);
-      const chunks = await prisma.documentChunk.findMany({
-        where: { document: { organizationId: orgId, status: "TRAINED" } },
-        include: { document: true },
-        take: 40
+
+      // Two-step join: trained org documents -> their chunks
+      const trainedDocs = await findDocs<any>(COL.documents, {
+        where: [["organizationId", "==", orgId], ["status", "==", "TRAINED"]],
       });
+      const docMap = new Map<string, { id: string; title: string }>();
+      for (const d of trainedDocs) docMap.set(d.id, { id: d.id, title: d.title });
+
+      let chunks: any[] = [];
+      const docIds = [...docMap.keys()];
+      for (let i = 0; i < docIds.length; i += 10) {
+        const slice = docIds.slice(i, i + 10);
+        const batch = await findDocs<any>(COL.documentChunks, {
+          where: [["documentId", "in", slice]],
+        });
+        for (const c of batch) {
+          chunks.push({ ...c, document: docMap.get(c.documentId) || null });
+        }
+        if (chunks.length >= 40) break;
+      }
+      chunks = chunks.slice(0, 40);
 
       if (chunks.length > 0) {
         const relevant = retrieveRelevantChunks(queryVector, message, chunks as any, 3);
@@ -482,10 +515,10 @@ async function generateWhatsAppAIReply(orgId: string, message: string, conversat
     // Get recent conversation history for context
     let history = "";
     try {
-      const recentMessages = await prisma.whatsAppMessage.findMany({
-        where: { conversationId },
-        orderBy: { createdAt: "desc" },
-        take: 6
+      const recentMessages = await findDocs<any>(COL.whatsappMessages, {
+        where: [["conversationId", "==", conversationId]],
+        orderBy: [["createdAt", "desc"]],
+        limit: 6,
       });
       history = recentMessages.reverse().map(m => `${m.direction}: ${m.content.slice(0, 100)}`).join("\n");
     } catch {}
@@ -520,8 +553,8 @@ Rules:
       try {
         const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
           method: "POST",
-          headers: { 
-            Authorization: `Bearer ${apiKey}`, 
+          headers: {
+            Authorization: `Bearer ${apiKey}`,
             "Content-Type": "application/json",
             "HTTP-Referer": "https://biztriach.vercel.app"
           },
@@ -535,7 +568,7 @@ Rules:
             temperature: 0.7
           })
         });
-        
+
         if (res.ok) {
           const data = await res.json();
           const reply = data.choices?.[0]?.message?.content;
@@ -575,9 +608,9 @@ async function sendWhatsAppMessage(phoneNumberId: string, token: string, to: str
 
     const res = await fetch(`https://graph.facebook.com/v20.0/${phoneNumberId}/messages`, {
       method: "POST",
-      headers: { 
-        Authorization: `Bearer ${token}`, 
-        "Content-Type": "application/json" 
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json"
       },
       body: JSON.stringify({
         messaging_product: "whatsapp",
@@ -586,14 +619,14 @@ async function sendWhatsAppMessage(phoneNumberId: string, token: string, to: str
         text: { body: message, preview_url: false }
       })
     });
-    
+
     const data = await res.json();
-    
+
     if (!res.ok) {
       console.error("[WhatsApp SEND] API error", JSON.stringify(data).slice(0, 500));
       return null;
     }
-    
+
     console.log("[WhatsApp SEND] ✅ Sent to", cleanTo, "ID:", data.messages?.[0]?.id);
     return data;
   } catch (e) {

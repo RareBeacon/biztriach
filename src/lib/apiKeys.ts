@@ -3,7 +3,7 @@
  * Securely handle platform API vs Bring Your Own Keys
  */
 
-import { prisma } from "./db";
+import { COL, findDocs, findUniqueBy, createDoc, updateDocData } from "./firestore";
 
 export type ApiProvider = "openai" | "openrouter" | "gemini" | "claude" | "custom";
 
@@ -49,15 +49,15 @@ export function validateApiKey(provider: ApiProvider, key: string): { valid: boo
 
 export async function getEffectiveApiConfig(organizationId: string, preferredProvider?: ApiProvider) {
   // 1. Check if org has BYOK keys
-  const apiKeys = await prisma.apiKey.findMany({
-    where: { organizationId, isActive: true },
-    orderBy: { createdAt: "desc" }
+  const apiKeys = await findDocs<any>(COL.apiKeys, {
+    where: [["organizationId", "==", organizationId], ["isActive", "==", true]],
+    orderBy: [["createdAt", "desc"]],
   });
 
   // 2. Check user's BYOK stored in User table (legacy path)
-  const users = await prisma.user.findMany({
-    where: { organizationId, status: "APPROVED" },
-    take: 1
+  const users = await findDocs<any>(COL.users, {
+    where: [["organizationId", "==", organizationId], ["status", "==", "APPROVED"]],
+    limit: 1,
   });
 
   const user = users[0];
@@ -106,18 +106,14 @@ export async function saveApiKey(organizationId: string, provider: ApiProvider, 
   const encrypted = encryptKey(rawKey);
 
   // Upsert
-  const existing = await prisma.apiKey.findFirst({
-    where: { organizationId, provider }
+  const existing = await findDocs<any>(COL.apiKeys, {
+    where: [["organizationId", "==", organizationId], ["provider", "==", provider]],
+    limit: 1,
   });
 
-  if (existing) {
-    return prisma.apiKey.update({
-      where: { id: existing.id },
-      data: { key: encrypted, isActive: true, updatedAt: new Date() }
-    });
+  if (existing[0]) {
+    return updateDocData(COL.apiKeys, existing[0].id, { key: encrypted, isActive: true });
   } else {
-    return prisma.apiKey.create({
-      data: { organizationId, provider, key: encrypted }
-    });
+    return createDoc(COL.apiKeys, { organizationId, provider, key: encrypted, isActive: true });
   }
 }

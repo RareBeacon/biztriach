@@ -1,17 +1,20 @@
 export const dynamic = "force-dynamic";
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/db";
 import { getUserFromRequest } from "@/lib/auth";
 import { encryptKey, decryptKey, validateApiKey } from "@/lib/apiKeys";
+import { COL, findDocs, getDoc, updateDocData, createDoc, deleteManyDocs } from "@/lib/firestore";
 
 export async function GET(req: Request) {
   const user = await getUserFromRequest(req);
   if (!user?.organizationId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const keys = await prisma.apiKey.findMany({ where: { organizationId: user.organizationId }, orderBy: { provider: "asc" } });
-  
+  const keys = await findDocs(COL.apiKeys, {
+    where: [["organizationId", "==", user.organizationId]],
+    orderBy: [["provider", "asc"]],
+  });
+
   // Also get BYOK from User table
-  const userRecord = await prisma.user.findUnique({ where: { id: user.id } });
+  const userRecord = await getDoc<any>(COL.users, user.id);
 
   const byok = {
     openai: userRecord?.openaiApiKey ? "***" + decryptKey(userRecord.openaiApiKey).slice(-6) : null,
@@ -21,7 +24,7 @@ export async function GET(req: Request) {
   };
 
   return NextResponse.json({
-    keys: keys.map(k => ({ ...k, key: "***" + decryptKey(k.key).slice(-6) })),
+    keys: keys.map((k: any) => ({ ...k, key: "***" + decryptKey(k.key).slice(-6) })),
     byok,
     preference: userRecord?.apiKeyPreference || "PLATFORM"
   });
@@ -35,7 +38,7 @@ export async function POST(req: Request) {
     const { provider, apiKey, preference } = await req.json();
 
     if (preference) {
-      await prisma.user.update({ where: { id: user.id }, data: { apiKeyPreference: preference } });
+      await updateDocData(COL.users, user.id, { apiKeyPreference: preference });
       return NextResponse.json({ success: true, preference });
     }
 
@@ -55,13 +58,16 @@ export async function POST(req: Request) {
     };
 
     if (fieldMap[provider]) {
-      await prisma.user.update({ where: { id: user.id }, data: { [fieldMap[provider]]: encrypted } });
+      await updateDocData(COL.users, user.id, { [fieldMap[provider]]: encrypted });
     }
 
-    const existing = await prisma.apiKey.findFirst({ where: { organizationId: user.organizationId, provider } });
-    const saved = existing
-      ? await prisma.apiKey.update({ where: { id: existing.id }, data: { key: encrypted, isActive: true } })
-      : await prisma.apiKey.create({ data: { organizationId: user.organizationId, provider, key: encrypted } });
+    const existing = await findDocs<any>(COL.apiKeys, {
+      where: [["organizationId", "==", user.organizationId], ["provider", "==", provider]],
+      limit: 1,
+    });
+    const saved = existing[0]
+      ? await updateDocData(COL.apiKeys, existing[0].id, { key: encrypted, isActive: true })
+      : await createDoc(COL.apiKeys, { organizationId: user.organizationId, provider, key: encrypted, isActive: true });
 
     return NextResponse.json({ success: true, key: { ...saved, key: "***" + apiKey.slice(-6) } });
   } catch (e) {
@@ -77,11 +83,13 @@ export async function DELETE(req: Request) {
   const provider = searchParams.get("provider");
   if (!provider) return NextResponse.json({ error: "Provider required" }, { status: 400 });
 
-  await prisma.apiKey.deleteMany({ where: { organizationId: user.organizationId, provider } });
+  await deleteManyDocs(COL.apiKeys, {
+    where: [["organizationId", "==", user.organizationId], ["provider", "==", provider]],
+  });
 
   const fieldMap: any = { openai: "openaiApiKey", openrouter: "openrouterApiKey", gemini: "geminiApiKey", claude: "claudeApiKey" };
   if (fieldMap[provider]) {
-    await prisma.user.update({ where: { id: user.id }, data: { [fieldMap[provider]]: null } });
+    await updateDocData(COL.users, user.id, { [fieldMap[provider]]: null });
   }
 
   return NextResponse.json({ success: true });

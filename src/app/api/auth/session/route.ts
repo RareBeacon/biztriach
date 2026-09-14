@@ -5,11 +5,11 @@ import { getUserFromRequest } from "@/lib/auth";
 
 export async function GET(req: Request) {
   const user = await getUserFromRequest(req);
-  
+
   if (!user) {
     return NextResponse.json({ authenticated: false }, { status: 401 });
   }
-  
+
   return NextResponse.json({
     authenticated: true,
     user: {
@@ -18,6 +18,8 @@ export async function GET(req: Request) {
       email: user.email,
       organizationId: user.organizationId,
       organizationName: user.organization?.name || "",
+      status: user.status,
+      role: user.role,
     },
   });
 }

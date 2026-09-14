@@ -2,11 +2,18 @@ export const dynamic = "force-dynamic";
 export const maxDuration = 30; // Vercel max duration for Pro is 30s, Hobby 10s - set to 30 for future scaling
 
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/db";
 import { generateEmbedding, retrieveRelevantChunks } from "@/lib/rag";
 import { analyzeSentiment, analyzeSentimentLLM } from "@/lib/sentiment";
 import { classifyIntentKeyword, shouldEscalateConversation } from "@/lib/intent";
 import { rateLimiter, getRateLimitKey, RATE_LIMITS, rateLimitResponse } from "@/lib/rateLimit";
+import {
+  COL,
+  getDoc,
+  createDoc,
+  updateDocData,
+  findDocs,
+  FieldValue,
+} from "@/lib/firestore";
 
 const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY || "";
 const AI_MODEL = process.env.AI_MODEL || "google/gemini-2.5-flash";
@@ -31,9 +38,7 @@ export async function POST(req: Request) {
     }
 
     // 1. Verify chatbot exists
-    const chatbot = await prisma.chatbot.findUnique({
-      where: { id: chatbotId },
-    });
+    const chatbot = await getDoc(COL.chatbots, chatbotId);
 
     if (!chatbot) {
       return NextResponse.json({ error: "Chatbot not found" }, { status: 404 });
@@ -42,10 +47,7 @@ export async function POST(req: Request) {
     // 2. Resolve or Create Conversation
     let conversation;
     if (conversationId) {
-      conversation = await prisma.conversation.findUnique({
-        where: { id: conversationId },
-        include: { chatbot: true }
-      });
+      conversation = await getDoc<any>(COL.conversations, conversationId);
       // Security: ensure conversation belongs to this chatbot
       if (conversation && conversation.chatbotId !== chatbotId) {
         return NextResponse.json({ error: "Conversation mismatch" }, { status: 403 });
@@ -54,31 +56,30 @@ export async function POST(req: Request) {
 
     if (!conversation) {
       const activeVisitorId = visitorId || `visitor_${Math.random().toString(36).substring(2, 11)}`;
-      conversation = await prisma.conversation.create({
-        data: {
-          chatbotId,
-          visitorId: activeVisitorId,
-          status: "ACTIVE",
-        },
+      conversation = await createDoc(COL.conversations, {
+        chatbotId,
+        organizationId: chatbot.organizationId || null,
+        visitorId: activeVisitorId,
+        status: "ACTIVE",
+        priority: "LOW",
+        channel: "website",
       });
     }
 
     // 2b. HUMAN TAKEOVER CHECK - CRITICAL FIX
     if (conversation.status === "PAUSED") {
       // AI is paused, human agent is handling. Save user message but don't auto-respond
-      await prisma.message.create({
-        data: {
-          conversationId: conversation.id,
-          sender: "USER",
-          content: message,
-        },
+      await createDoc(COL.messages, {
+        conversationId: conversation.id,
+        sender: "USER",
+        content: message,
+        tokenCount: 0,
+        responseTimeMs: 0,
+        channel: "website",
       });
 
       // Update conversation timestamp
-      await prisma.conversation.update({
-        where: { id: conversation.id },
-        data: { updatedAt: new Date() }
-      });
+      await updateDocData(COL.conversations, conversation.id, {});
 
       // Return takeover status - frontend will show waiting state
       return NextResponse.json(
@@ -111,14 +112,13 @@ export async function POST(req: Request) {
     const needsDeepAnalysis = sentimentResult.sentiment === "angry" || sentimentResult.urgency === "critical" || intentResult.confidence < 0.6;
 
     // Save user message with metadata
-    await prisma.message.create({
-      data: {
-        conversationId: conversation.id,
-        sender: "USER",
-        content: message,
-        // Store metadata as JSON in sources field temporarily? We'll store separated in content with hidden prefix if needed
-        // However schema doesn't have metadata fields, so we log via console and will extend later
-      },
+    await createDoc(COL.messages, {
+      conversationId: conversation.id,
+      sender: "USER",
+      content: message,
+      tokenCount: 0,
+      responseTimeMs: 0,
+      channel: "website",
     });
 
     console.log(`[CHAT] Ticket from ${conversation.visitorId} | Intent=${intentResult.intent} (${Math.round(intentResult.confidence * 100)}%) | Sentiment=${sentimentResult.sentiment} | Urgency=${sentimentResult.urgency} | Escalate=${sentimentResult.isEscalationNeeded}`);
@@ -135,35 +135,35 @@ export async function POST(req: Request) {
     try {
       const today = new Date();
       today.setHours(0, 0, 0, 0);
+      const todayIso = today.toISOString();
+      const tomorrowIso = new Date(today.getTime() + 24 * 60 * 60 * 1000).toISOString();
 
-      // Use proper unique constraint: chatbotId + date combo
-      // Since id is random, we need to fetch existing analytics for today first
-      const existingAnalytics = await prisma.analytics.findFirst({
-        where: {
-          chatbotId,
-          date: {
-            gte: today,
-            lt: new Date(today.getTime() + 24 * 60 * 60 * 1000)
-          }
-        }
+      // Upsert by chatbotId + date (ISO strings compare chronologically)
+      const existingAnalytics = await findDocs<any>(COL.analytics, {
+        where: [
+          ["chatbotId", "==", chatbotId],
+          ["date", ">=", todayIso],
+          ["date", "<", tomorrowIso],
+        ],
+        limit: 1,
       });
 
-      if (existingAnalytics) {
-        await prisma.analytics.update({
-          where: { id: existingAnalytics.id },
-          data: {
-            messagesCount: { increment: 1 }, // Will add +1 more for AI response later
-            conversationsCount: conversationId ? undefined : { increment: 1 }
-          }
+      if (existingAnalytics[0]) {
+        await updateDocData(COL.analytics, existingAnalytics[0].id, {
+          messagesCount: FieldValue.increment(1), // Will add +1 more for AI response later
+          ...(conversationId ? {} : { conversationsCount: FieldValue.increment(1) }),
         });
       } else {
-        await prisma.analytics.create({
-          data: {
-            chatbotId,
-            date: today,
-            conversationsCount: 1,
-            messagesCount: 1,
-          }
+        await createDoc(COL.analytics, {
+          chatbotId,
+          date: todayIso,
+          conversationsCount: 1,
+          messagesCount: 1,
+          websiteVisitors: 0,
+          leadsCount: 0,
+          salesCount: 0,
+          whatsappCount: 0,
+          avgResponseTimeMs: 0,
         });
       }
     } catch (err) {
@@ -175,18 +175,31 @@ export async function POST(req: Request) {
     let dbChunks: any[] = [];
     try {
       const queryVector = await generateEmbedding(message);
-      dbChunks = await prisma.documentChunk.findMany({
-        where: {
-          document: {
-            chatbotId,
-            status: "TRAINED",
-          },
-        },
-        include: {
-          document: true,
-        },
-        take: 100 // Safety limit to avoid huge memory fetch
+
+      // Two-step join (Firestore has no nested queries):
+      // documents for this chatbot with status TRAINED -> their chunks
+      const trainedDocs = await findDocs<any>(COL.documents, {
+        where: [
+          ["chatbotId", "==", chatbotId],
+          ["status", "==", "TRAINED"],
+        ],
       });
+      const docMap = new Map<string, { id: string; title: string }>();
+      for (const d of trainedDocs) docMap.set(d.id, { id: d.id, title: d.title });
+
+      // Firestore `in` queries accept max 10 values — fetch in slices
+      const docIds = [...docMap.keys()];
+      for (let i = 0; i < docIds.length; i += 10) {
+        const slice = docIds.slice(i, i + 10);
+        const chunkBatch = await findDocs<any>(COL.documentChunks, {
+          where: [["documentId", "in", slice]],
+        });
+        for (const c of chunkBatch) {
+          dbChunks.push({ ...c, document: docMap.get(c.documentId) || null });
+        }
+        if (dbChunks.length >= 100) break; // Safety limit to avoid huge memory fetch
+      }
+      dbChunks = dbChunks.slice(0, 100);
 
       if (dbChunks.length > 0) {
         relevantChunks = retrieveRelevantChunks(queryVector, message, dbChunks as any, 4);
@@ -204,10 +217,10 @@ export async function POST(req: Request) {
     }));
 
     // Fetch history (last 10 messages for context window)
-    const history = await prisma.message.findMany({
-      where: { conversationId: conversation.id },
-      orderBy: { createdAt: "asc" },
-      take: 12,
+    const history = await findDocs(COL.messages, {
+      where: [["conversationId", "==", conversation.id]],
+      orderBy: [["createdAt", "asc"]],
+      limit: 12,
     });
 
     // 6. BUILD SYSTEM PROMPT - Enhanced with intent awareness
@@ -319,25 +332,22 @@ Rules:
               controller.enqueue(encoder.encode(`m:${JSON.stringify({ intent: finalIntent.intent, sentiment: finalSentiment.sentiment, shouldEscalate })}\n`));
 
               // Persist AI response
-              await prisma.message.create({
-                data: {
-                  conversationId: conversation!.id,
-                  sender: "AI",
-                  content: fullAnswer,
-                  sources: JSON.stringify(citations),
-                },
+              await createDoc(COL.messages, {
+                conversationId: conversation!.id,
+                sender: "AI",
+                content: fullAnswer,
+                sources: JSON.stringify(citations),
+                tokenCount: 0,
+                responseTimeMs: 0,
+                channel: "website",
               });
 
-              await prisma.conversation.update({
-                where: { id: conversation!.id },
-                data: { updatedAt: new Date() }
-              });
+              await updateDocData(COL.conversations, conversation!.id, {});
 
               // If escalation needed, auto-mark conversation as attention
               if (shouldEscalate) {
-                await prisma.conversation.update({
-                  where: { id: conversation!.id },
-                  data: { status: "ACTIVE" } // Keep active but log escalation - could create separate field
+                await updateDocData(COL.conversations, conversation!.id, {
+                  status: "ACTIVE", // Keep active but log escalation - could create separate field
                 }).catch(() => { });
               }
 
@@ -346,13 +356,14 @@ Rules:
               if (fullAnswer.length === 0) {
                 const fallback = `I'm experiencing a brief connection issue. Could you please repeat your question? I've noted your request and will ensure it's handled.`;
                 controller.enqueue(encoder.encode(`t:${fallback}\n`));
-                await prisma.message.create({
-                  data: {
-                    conversationId: conversation!.id,
-                    sender: "AI",
-                    content: fallback,
-                    sources: JSON.stringify(citations)
-                  }
+                await createDoc(COL.messages, {
+                  conversationId: conversation!.id,
+                  sender: "AI",
+                  content: fallback,
+                  sources: JSON.stringify(citations),
+                  tokenCount: 0,
+                  responseTimeMs: 0,
+                  channel: "website",
                 }).catch(() => { });
               }
             } finally {
@@ -413,19 +424,17 @@ Rules:
         }
         controller.enqueue(encoder.encode(`m:${JSON.stringify({ intent: finalIntent.intent, sentiment: finalSentiment.sentiment, shouldEscalate })}\n`));
 
-        await prisma.message.create({
-          data: {
-            conversationId: conversation!.id,
-            sender: "AI",
-            content: streamed,
-            sources: JSON.stringify(citations),
-          },
+        await createDoc(COL.messages, {
+          conversationId: conversation!.id,
+          sender: "AI",
+          content: streamed,
+          sources: JSON.stringify(citations),
+          tokenCount: 0,
+          responseTimeMs: 0,
+          channel: "website",
         });
 
-        await prisma.conversation.update({
-          where: { id: conversation!.id },
-          data: { updatedAt: new Date() }
-        }).catch(() => { });
+        await updateDocData(COL.conversations, conversation!.id, {}).catch(() => { });
 
         controller.close();
       },
