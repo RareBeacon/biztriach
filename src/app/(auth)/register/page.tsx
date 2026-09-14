@@ -4,6 +4,8 @@ import React, { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Bot, Mail, KeyRound, User, Building, ArrowRight, ShieldAlert, CheckCircle } from "lucide-react";
+import { createUserWithEmailAndPassword, signOut } from "firebase/auth";
+import { getFirebaseAuth, isFirebaseClientConfigured } from "@/lib/firebase-client";
 
 export default function RegisterPage() {
   const router = useRouter();
@@ -12,7 +14,7 @@ export default function RegisterPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [organizationName, setOrganizationName] = useState("");
-  
+
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -23,27 +25,51 @@ export default function RegisterPage() {
     setSuccess(null);
     setIsLoading(true);
 
+    if (!isFirebaseClientConfigured()) {
+      setError("Authentication is not configured. Set the Firebase environment variables.");
+      setIsLoading(false);
+      return;
+    }
+
     try {
+      // 1. Create the Firebase Auth account (credentials stay with Firebase)
+      const auth = getFirebaseAuth();
+      const cred = await createUserWithEmailAndPassword(auth, email, password);
+
+      // 2. Create the Biztriach profile + org defaults server-side.
+      //    The fetch patch attaches the fresh ID token automatically.
       const response = await fetch("/api/auth/register", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name, email, password, organizationName }),
+        body: JSON.stringify({ name, email, organizationName }),
       });
 
       const data = await response.json();
 
       if (!response.ok) {
+        // Roll back the Auth account so the user can retry cleanly
+        await cred.user.delete().catch(() => {});
+        await signOut(auth).catch(() => {});
         throw new Error(data.error || "Registration failed");
       }
 
+      // Registration completes with a PENDING status awaiting admin approval —
+      // end the Firebase session until approved.
+      await signOut(auth).catch(() => {});
+
       setSuccess("Account successfully created! Directing to login...");
-      
+
       setTimeout(() => {
         router.push("/login?registered=true");
       }, 1000);
-
     } catch (err: any) {
-      setError(err.message || "An unexpected error occurred during signup.");
+      const code = err?.code || "";
+      let msg = err?.message || "An unexpected error occurred during signup.";
+      if (code === "auth/email-already-in-use") msg = "A user with this email already exists.";
+      else if (code === "auth/weak-password") msg = "Password should be at least 6 characters.";
+      else if (code === "auth/invalid-email") msg = "That email address doesn't look right.";
+      else if (code === "auth/network-request-failed") msg = "Network error. Check your connection and try again.";
+      setError(msg);
       setIsLoading(false);
     }
   };
@@ -51,7 +77,7 @@ export default function RegisterPage() {
   return (
     <div className="min-h-screen bg-slate-50 flex items-center justify-center py-12 px-6 grid-bg">
       <div className="w-full max-w-md bg-white border border-slate-200 shadow-xl rounded-2xl p-8">
-        
+
         {/* Logo Header */}
         <div className="text-center mb-8 flex flex-col items-center">
           <Link href="/" className="flex items-center gap-2 mb-4">

@@ -4,11 +4,35 @@ import React, { useState, useEffect, Suspense } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Bot, KeyRound, Mail, ArrowRight, ShieldAlert, CheckCircle } from "lucide-react";
+import {
+  signInWithEmailAndPassword,
+  signOut,
+  sendPasswordResetEmail,
+} from "firebase/auth";
+import { getFirebaseAuth, isFirebaseClientConfigured } from "@/lib/firebase-client";
+
+function friendlyFirebaseError(err: any): string {
+  const code = err?.code || "";
+  switch (code) {
+    case "auth/invalid-email":
+      return "That email address doesn't look right.";
+    case "auth/user-not-found":
+    case "auth/wrong-password":
+    case "auth/invalid-credential":
+      return "Invalid email or password.";
+    case "auth/too-many-requests":
+      return "Too many attempts. Please wait a moment and try again.";
+    case "auth/network-request-failed":
+      return "Network error. Check your connection and try again.";
+    default:
+      return err?.message || "Authentication failed";
+  }
+}
 
 function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  
+
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -28,31 +52,55 @@ function LoginForm() {
     setSuccess(null);
     setIsLoading(true);
 
-    try {
-      const response = await fetch("/api/auth/login", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password }),
-      });
+    if (!isFirebaseClientConfigured()) {
+      setError("Authentication is not configured. Set the Firebase environment variables.");
+      setIsLoading(false);
+      return;
+    }
 
+    try {
+      // 1. Firebase credential sign-in (browser <-> Firebase directly)
+      const auth = getFirebaseAuth();
+      const cred = await signInWithEmailAndPassword(auth, email, password);
+
+      // 2. Complete login server-side: approval workflow + session user payload.
+      //    The fetch patch attaches the ID token automatically.
+      const response = await fetch("/api/auth/login", { method: "POST" });
       const data = await response.json();
 
       if (!response.ok) {
+        // Not approved / no profile — end the Firebase session before showing why.
+        await signOut(auth).catch(() => {});
         throw new Error(data.error || "Authentication failed");
       }
 
       setSuccess("Sign-in successful! Redirecting you...");
-      
+
       // Delay slightly for smooth transition
       setTimeout(() => {
         const from = searchParams.get("from") || "/dashboard/overview";
         router.push(from);
         router.refresh();
       }, 800);
-
     } catch (err: any) {
-      setError(err.message || "An unexpected error occurred. Please try again.");
+      setError(friendlyFirebaseError(err));
       setIsLoading(false);
+    }
+  };
+
+  const handleForgotPassword = async () => {
+    setError(null);
+    setSuccess(null);
+    if (!email) {
+      setError("Enter your email address above first, then tap Forgot password.");
+      return;
+    }
+    try {
+      const auth = getFirebaseAuth();
+      await sendPasswordResetEmail(auth, email);
+      setSuccess("Password reset email sent! Check your inbox (and spam folder).");
+    } catch (err: any) {
+      setError(friendlyFirebaseError(err));
     }
   };
 
@@ -108,7 +156,13 @@ function LoginForm() {
         <div>
           <div className="flex items-center justify-between mb-1.5">
             <label className="text-xs font-semibold text-slate-600 uppercase tracking-wider block">Password</label>
-            <a href="#" className="text-[11px] text-blue-600 font-semibold hover:underline">Forgot password?</a>
+            <button
+              type="button"
+              onClick={handleForgotPassword}
+              className="text-[11px] text-blue-600 font-semibold hover:underline"
+            >
+              Forgot password?
+            </button>
           </div>
           <div className="relative">
             <KeyRound className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
@@ -139,7 +193,7 @@ function LoginForm() {
         New to SupportIQ?{" "}
         <Link href="/register" className="text-blue-600 font-semibold hover:underline">
           Create an account
-          </Link>
+        </Link>
       </div>
     </div>
   );

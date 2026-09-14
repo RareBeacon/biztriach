@@ -1,7 +1,7 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   experimental: {
-    serverComponentsExternalPackages: ["pdfreader", "mammoth"],
+    serverComponentsExternalPackages: ["pdfreader", "mammoth", "firebase-admin"],
   },
 };
 

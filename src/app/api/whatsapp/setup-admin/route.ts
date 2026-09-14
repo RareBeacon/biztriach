@@ -1,6 +1,6 @@
 export const dynamic = "force-dynamic";
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/db";
+import { COL, findUniqueBy, findDocs, getDoc, createDoc, updateDocData } from "@/lib/firestore";
 
 // Admin setup endpoint - allows configuring WhatsApp for any org via secret
 // Secret is checked against ADMIN_SETUP_KEY env or hardcoded fallback for initial setup
@@ -31,31 +31,33 @@ export async function POST(req: Request) {
     let org = null;
 
     if (!orgId && email) {
-      const user = await prisma.user.findUnique({ where: { email }, include: { organization: true } });
+      const user = await findUniqueBy<any>(COL.users, "email", email);
       if (user?.organizationId) {
         orgId = user.organizationId;
-        org = user.organization;
+        org = await getDoc(COL.organizations, user.organizationId);
       }
     }
 
     if (!orgId) {
       // Find first admin user org
-      const adminUser = await prisma.user.findFirst({ 
-        where: { email: { in: ["ogungboyeopeyemiphilip@gmail.com", "phoslabceo@gmail.com", "opeyemiy90@gmail.com"] } },
-        include: { organization: true }
-      });
-      if (adminUser?.organizationId) {
-        orgId = adminUser.organizationId;
-        org = adminUser.organization;
+      const adminEmails = ["ogungboyeopeyemiphilip@gmail.com", "phoslabceo@gmail.com", "opeyemiy90@gmail.com"];
+      for (let i = 0; i < adminEmails.length; i += 10) {
+        const slice = adminEmails.slice(i, i + 10);
+        const adminUsers = await findDocs<any>(COL.users, { where: [["email", "in", slice]], limit: 1 });
+        if (adminUsers[0]?.organizationId) {
+          orgId = adminUsers[0].organizationId;
+          org = await getDoc(COL.organizations, orgId);
+          break;
+        }
       }
     }
 
     if (!orgId) {
       // Fallback: first organization
-      const firstOrg = await prisma.organization.findFirst();
-      if (firstOrg) {
-        orgId = firstOrg.id;
-        org = firstOrg;
+      const firstOrgs = await findDocs<any>(COL.organizations, { limit: 1 });
+      if (firstOrgs[0]) {
+        orgId = firstOrgs[0].id;
+        org = firstOrgs[0];
       }
     }
 
@@ -66,7 +68,7 @@ export async function POST(req: Request) {
     const wabaId = whatsappBusinessAccountId || businessAccountId || null;
     const vToken = verifyToken || "biztriach_verify";
 
-    const existing = await prisma.whatsAppAccount.findUnique({ where: { organizationId: orgId } });
+    const existing = await findUniqueBy<any>(COL.whatsappAccounts, "organizationId", orgId);
 
     const data = {
       organizationId: orgId,
@@ -80,9 +82,13 @@ export async function POST(req: Request) {
       businessParsing: true
     };
 
-    const account = existing 
-      ? await prisma.whatsAppAccount.update({ where: { organizationId: orgId }, data })
-      : await prisma.whatsAppAccount.create({ data });
+    const account = existing
+      ? await updateDocData(COL.whatsappAccounts, existing.id, data)
+      : await createDoc(COL.whatsappAccounts, data);
+
+    if (!account) {
+      return NextResponse.json({ error: "Failed to save WhatsApp account" }, { status: 500 });
+    }
 
     return NextResponse.json({
       success: true,
@@ -128,12 +134,18 @@ export async function GET(req: Request) {
   }
 
   try {
-    const accounts = await prisma.whatsAppAccount.findMany({ include: { organization: true } });
+    const accounts = await findDocs<any>(COL.whatsappAccounts, {});
+    const withOrgs = await Promise.all(
+      accounts.map(async (a) => ({
+        ...a,
+        organization: a.organizationId ? await getDoc(COL.organizations, a.organizationId) : null,
+      }))
+    );
     return NextResponse.json({
-      totalConnected: accounts.length,
-      accounts: accounts.map(a => ({
+      totalConnected: withOrgs.length,
+      accounts: withOrgs.map(a => ({
         organizationId: a.organizationId,
-        organizationName: (a as any).organization?.name,
+        organizationName: a.organization?.name,
         phoneNumberId: a.phoneNumberId,
         businessAccountId: a.businessAccountId,
         isConnected: a.isConnected,

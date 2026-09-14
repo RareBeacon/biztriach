@@ -109,7 +109,12 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
   const logout = async () => {
     setIsLoading(true);
     try {
-      await fetch("/api/auth/logout", { method: "POST" });
+      // Firebase Auth session lives client-side — sign out from Firebase.
+      const { getFirebaseAuth, isFirebaseClientConfigured } = await import("@/lib/firebase-client");
+      if (isFirebaseClientConfigured()) {
+        const { signOut } = await import("firebase/auth");
+        await signOut(getFirebaseAuth());
+      }
       setUser(null);
       setChatbots([]);
       setActiveChatbot(null);

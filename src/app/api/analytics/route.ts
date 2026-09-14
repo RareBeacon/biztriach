@@ -1,8 +1,8 @@
 export const dynamic = "force-dynamic";
 
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/db";
 import { getUserFromRequest } from "@/lib/auth";
+import { COL, getDoc, findDocs, countDocs } from "@/lib/firestore";
 
 export async function GET(req: Request) {
   const user = await getUserFromRequest(req);
@@ -19,25 +19,21 @@ export async function GET(req: Request) {
 
   try {
     // Verify chatbot ownership
-    const chatbot = await prisma.chatbot.findFirst({
-      where: { id: chatbotId, organizationId: user.organizationId },
-    });
-
-    if (!chatbot) {
+    const chatbot = await getDoc(COL.chatbots, chatbotId);
+    if (!chatbot || chatbot.organizationId !== user.organizationId) {
       return NextResponse.json({ error: "Chatbot not found or access denied" }, { status: 404 });
     }
 
     // 1. Fetch historical analytics records
-    const history = await prisma.analytics.findMany({
-      where: { chatbotId },
-      orderBy: { date: "asc" },
-      take: 30, // Last 30 days
+    const history = await findDocs<any>(COL.analytics, {
+      where: [["chatbotId", "==", chatbotId]],
+      orderBy: [["date", "asc"]],
+      limit: 30, // Last 30 days
     });
 
     // 2. Fetch all conversations to aggregate metrics
-    const conversations = await prisma.conversation.findMany({
-      where: { chatbotId },
-      include: { _count: { select: { messages: true } } },
+    const conversations = await findDocs<any>(COL.conversations, {
+      where: [["chatbotId", "==", chatbotId]],
     });
 
     const totalConversations = conversations.length;
@@ -45,35 +41,44 @@ export async function GET(req: Request) {
     let ratedCount = 0;
     let sumRating = 0;
 
-    for (const c of conversations) {
-      totalMessages += c._count.messages;
+    // Count messages per conversation (replaces Prisma's _count include)
+    const messageCounts = await Promise.all(
+      conversations.map(c => countDocs(COL.messages, { where: [["conversationId", "==", c.id]] }))
+    );
+    conversations.forEach((c, i) => {
+      totalMessages += messageCounts[i];
       if (c.rating) {
         ratedCount++;
         sumRating += c.rating;
       }
-    }
+    });
 
     // Average rating
     const averageRating = ratedCount > 0 ? Number((sumRating / ratedCount).toFixed(1)) : 4.5; // default fallback demo
 
     // 3. Extract top asked questions (frequently occurring user messages)
-    const userMessages = await prisma.message.findMany({
-      where: {
-        sender: "USER",
-        conversation: { chatbotId },
-      },
-      select: { content: true },
-      take: 100,
-    });
+    // Two-step join: conversations of this chatbot -> their user messages
+    const convIds = conversations.map(c => c.id);
+    const userMessages: { content: string }[] = [];
+    for (let i = 0; i < convIds.length; i += 10) {
+      const slice = convIds.slice(i, i + 10);
+      const msgs = await findDocs<any>(COL.messages, {
+        where: [["conversationId", "in", slice], ["sender", "==", "USER"]],
+        limit: 100,
+      });
+      userMessages.push(...msgs.map(m => ({ content: m.content })));
+      if (userMessages.length >= 100) break;
+    }
+    const limitedMessages = userMessages.slice(0, 100);
 
     // Simple frequency grouping of queries
     const questionFrequencies: Record<string, number> = {};
-    for (const msg of userMessages) {
+    for (const msg of limitedMessages) {
       const clean = msg.content
         .toLowerCase()
         .trim()
         .replace(/[?.]/g, "");
-      
+
       if (clean.length < 5) continue;
 
       // Group similar questions
@@ -89,7 +94,7 @@ export async function GET(req: Request) {
           break;
         }
       }
-      
+
       if (!foundGroup) {
         questionFrequencies[clean] = 1;
       }
@@ -115,7 +120,7 @@ export async function GET(req: Request) {
 
     // Default trend data if history is empty
     const trendData = history.map(h => ({
-      date: h.date.toLocaleDateString("en-US", { month: "short", day: "numeric" }),
+      date: new Date(h.date).toLocaleDateString("en-US", { month: "short", day: "numeric" }),
       conversations: h.conversationsCount,
       messages: h.messagesCount,
     }));

@@ -1,14 +1,17 @@
 export const dynamic = "force-dynamic";
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/db";
 import { getUserFromRequest } from "@/lib/auth";
 import { crawlWebsite } from "@/lib/knowledgeImporters";
 import { splitTextIntoChunks, generateEmbeddingsBatch } from "@/lib/rag";
+import { COL, findDocs, createDoc, updateDocData, getDoc, createManyDocs } from "@/lib/firestore";
 
 export async function GET(req: Request) {
   const user = await getUserFromRequest(req);
   if (!user?.organizationId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  const sources = await prisma.websiteSource.findMany({ where: { organizationId: user.organizationId }, orderBy: { createdAt: "desc" } });
+  const sources = await findDocs(COL.websiteSources, {
+    where: [["organizationId", "==", user.organizationId]],
+    orderBy: [["createdAt", "desc"]],
+  });
   return NextResponse.json(sources);
 }
 
@@ -22,34 +25,42 @@ export async function POST(req: Request) {
     // Validate URL
     try { new URL(url); } catch { return NextResponse.json({ error: "Invalid URL" }, { status: 400 }); }
 
-    const source = await prisma.websiteSource.create({
-      data: { organizationId: user.organizationId, url, status: "CRAWLING", autoSync: autoSync || false }
+    const source = await createDoc(COL.websiteSources, {
+      organizationId: user.organizationId,
+      url,
+      status: "CRAWLING",
+      autoSync: autoSync || false,
+      pagesCrawled: 0,
+      lastSyncedAt: null,
+      syncInterval: null,
     });
 
     // Background crawl (MVP: synchronous for simplicity)
     try {
       const pages = await crawlWebsite(url, 10);
-      
+
       // Find chatbot for org
       let targetChatbotId = chatbotId;
       if (!targetChatbotId) {
-        const chatbot = await prisma.chatbot.findFirst({ where: { organizationId: user.organizationId } });
-        targetChatbotId = chatbot?.id;
+        const chatbots = await findDocs(COL.chatbots, {
+          where: [["organizationId", "==", user.organizationId]],
+          limit: 1,
+        });
+        targetChatbotId = chatbots[0]?.id;
       }
 
       if (targetChatbotId && pages.length > 0) {
         for (const page of pages) {
-          const doc = await prisma.document.create({
-            data: {
-              title: page.title || `Website: ${page.url}`,
-              organizationId: user.organizationId,
-              chatbotId: targetChatbotId,
-              fileType: "url",
-              sourceType: "website",
-              sourceUrl: page.url,
-              status: "PROCESSING",
-              size: page.content.length
-            }
+          const doc = await createDoc(COL.documents, {
+            title: page.title || `Website: ${page.url}`,
+            organizationId: user.organizationId,
+            chatbotId: targetChatbotId,
+            fileType: "url",
+            sourceType: "website",
+            sourceUrl: page.url,
+            status: "PROCESSING",
+            size: page.content.length,
+            chunkCount: 0,
           });
 
           const chunks = splitTextIntoChunks(page.content);
@@ -64,23 +75,27 @@ export async function POST(req: Request) {
           }));
 
           if (chunksData.length > 0) {
-            await prisma.documentChunk.createMany({ data: chunksData });
+            await createManyDocs(COL.documentChunks, chunksData);
           }
 
-          await prisma.document.update({ where: { id: doc.id }, data: { status: "TRAINED", chunkCount: chunks.length } });
+          await updateDocData(COL.documents, doc.id, { status: "TRAINED", chunkCount: chunks.length });
         }
 
-        await prisma.websiteSource.update({ where: { id: source.id }, data: { status: "TRAINED", pagesCrawled: pages.length, lastSyncedAt: new Date() } });
+        await updateDocData(COL.websiteSources, source.id, {
+          status: "TRAINED",
+          pagesCrawled: pages.length,
+          lastSyncedAt: new Date().toISOString(),
+        });
       } else {
-        await prisma.websiteSource.update({ where: { id: source.id }, data: { status: "TRAINED", pagesCrawled: pages.length } });
+        await updateDocData(COL.websiteSources, source.id, { status: "TRAINED", pagesCrawled: pages.length });
       }
 
-      const updated = await prisma.websiteSource.findUnique({ where: { id: source.id } });
+      const updated = await getDoc(COL.websiteSources, source.id);
       return NextResponse.json(updated);
 
     } catch (crawlError) {
       console.error("Crawl failed", crawlError);
-      await prisma.websiteSource.update({ where: { id: source.id }, data: { status: "FAILED" } });
+      await updateDocData(COL.websiteSources, source.id, { status: "FAILED" });
       return NextResponse.json({ error: (crawlError as Error).message }, { status: 500 });
     }
 

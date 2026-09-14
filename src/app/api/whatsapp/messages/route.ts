@@ -1,8 +1,8 @@
 export const dynamic = "force-dynamic";
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/db";
 import { getUserFromRequest } from "@/lib/auth";
 import { parseBusinessMessage } from "@/lib/businessParser";
+import { COL, findDocs, createDoc, updateDocData } from "@/lib/firestore";
 
 export async function GET(req: Request) {
   const user = await getUserFromRequest(req);
@@ -11,17 +11,32 @@ export async function GET(req: Request) {
   const conversationId = searchParams.get("conversationId");
 
   if (conversationId) {
-    const messages = await prisma.whatsAppMessage.findMany({ where: { conversationId }, orderBy: { createdAt: "asc" }, take: 200 });
+    const messages = await findDocs(COL.whatsappMessages, {
+      where: [["conversationId", "==", conversationId]],
+      orderBy: [["createdAt", "asc"]],
+      limit: 200,
+    });
     return NextResponse.json(messages);
   }
 
-  const conversations = await prisma.whatsAppConversation.findMany({
-    where: { organizationId: user.organizationId },
-    include: { messages: { orderBy: { createdAt: "desc" }, take: 1 } },
-    orderBy: { updatedAt: "desc" },
-    take: 100
+  const conversations = await findDocs<any>(COL.whatsappConversations, {
+    where: [["organizationId", "==", user.organizationId]],
+    orderBy: [["updatedAt", "desc"]],
+    limit: 100,
   });
-  return NextResponse.json(conversations);
+
+  // Attach latest message per conversation (replaces Prisma include with take: 1)
+  const withMessages = await Promise.all(
+    conversations.map(async (conv) => {
+      const msgs = await findDocs(COL.whatsappMessages, {
+        where: [["conversationId", "==", conv.id]],
+        orderBy: [["createdAt", "desc"]],
+        limit: 1,
+      });
+      return { ...conv, messages: msgs };
+    })
+  );
+  return NextResponse.json(withMessages);
 }
 
 export async function POST(req: Request) {
@@ -33,8 +48,11 @@ export async function POST(req: Request) {
 
     let convId = conversationId;
     if (!convId && phoneNumber) {
-      const conv = await prisma.whatsAppConversation.findFirst({ where: { organizationId: user.organizationId, phoneNumber } });
-      if (conv) convId = conv.id;
+      const convs = await findDocs(COL.whatsappConversations, {
+        where: [["organizationId", "==", user.organizationId], ["phoneNumber", "==", phoneNumber]],
+        limit: 1,
+      });
+      if (convs[0]) convId = convs[0].id;
     }
 
     if (!convId) return NextResponse.json({ error: "Conversation required" }, { status: 400 });
@@ -43,11 +61,17 @@ export async function POST(req: Request) {
     const parsed = parseBusinessMessage(content);
     const isBusinessOp = parsed.type !== "UNKNOWN" && parsed.confidence > 0.5;
 
-    const msg = await prisma.whatsAppMessage.create({
-      data: { conversationId: convId, direction: "OUTBOUND", type: "text", content, isBusinessOp, parsedData: isBusinessOp ? JSON.stringify(parsed) : null }
+    const msg = await createDoc(COL.whatsappMessages, {
+      conversationId: convId,
+      direction: "OUTBOUND",
+      type: "text",
+      content,
+      isBusinessOp,
+      parsedData: isBusinessOp ? JSON.stringify(parsed) : null,
+      aiResponse: null,
     });
 
-    await prisma.whatsAppConversation.update({ where: { id: convId }, data: { updatedAt: new Date() } });
+    await updateDocData(COL.whatsappConversations, convId, {});
 
     // TODO: Send via WhatsApp Cloud API if connected
 

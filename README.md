@@ -1,164 +1,139 @@
-# SupportIQ AI - Customer Support Automation SaaS
+# Biztriach — AI Business Platform (Firebase Edition)
 
-SupportIQ AI is an enterprise-grade customer support automation SaaS platform similar to Intercom AI and Chatbase. It enables businesses to design, brand, and deploy AI support representative widgets trained directly on their private documentation, deflection parameters, and customer guides.
+Biztriach is an AI business platform for SMEs: one AI employee that handles customer support, sales, inventory, WhatsApp business ops, landing pages, and financial reports. This is **v3.0 — fully migrated from Supabase/Postgres to Firebase** (Firestore + Firebase Auth + Firebase Storage).
 
 ## Table of Contents
 1. [Product Overview](#product-overview)
 2. [Key Features](#key-features)
 3. [Technology Stack](#technology-stack)
-4. [RAG Processing Architecture](#rag-processing-architecture)
-5. [Database Architecture](#database-architecture)
-6. [Installation & Local Setup](#installation--local-setup)
-7. [Environment Variables](#environment-variables)
+4. [Architecture (Firebase)](#architecture-firebase)
+5. [Installation & Local Setup](#installation--local-setup)
+6. [Environment Variables](#environment-variables)
+7. [Seeding](#seeding)
 8. [Production Deployment](#production-deployment)
-9. [Troubleshooting & Windows SWC Compile Notes](#troubleshooting)
+9. [Migration Notes (Supabase → Firebase)](#migration-notes-supabase--firebase)
 
 ---
 
 ## Product Overview
-SupportIQ AI serves small-and-medium businesses, SaaS teams, and agencies by providing instant customer support answers. Users can sign up, create multiple custom AI agents, feed private business manuals, monitor visitors threads, take over conversations, and review analytical metrics in real-time.
+Biztriach serves small-and-medium businesses by providing instant customer support answers, WhatsApp-driven business operations ("Sold 5 bags rice for ₦85k" → inventory + sales auto-update), and a full business management suite: users can sign up, create AI agents, feed private business manuals, monitor visitor threads, take over conversations, and review analytics in real time.
 
 ---
 
 ## Key Features
-- **Premium SaaS Landing Page**: Modern dark-theme glassmorphism marketing layout with pricing plans, testimonies, and interactive FAQ panels.
-- **Dynamic AI Agent Configurator**: Adjust name, role instructions (system prompts), suggestions chips, custom greeting messages, and brand theme colors.
-- **Advanced Knowledge Base (RAG)**: Ingest, parse, and chunk PDF, DOCX, TXT, and Markdown files. Computes 384-dimensional vector similarity for instant context injection.
-- **Streaming Conversations**: Fluid, word-by-word streaming AI responses with citation sources to maintain high context accuracy.
-- **Helpdesk Inbox & Takeover**: A unified workspace lists active customer conversations, allowing human support representatives to pause the AI bot and chat directly with visitors.
-- **Custom-Branded Chat Widget**: Self-contained client JS code that injects a floating toggle button hosting a responsive iframe chat portal.
-- **Operational Analytics**: Daily message counts, deflection trends, CSAT score summaries, and frequently asked question lists.
+- **AI Support Chatbots (RAG)**: ingest PDF, DOCX, TXT, Markdown and website crawls; 384-dim embeddings; hybrid semantic + keyword retrieval with citations.
+- **WhatsApp Cloud API (dual-mode)**: owner numbers run business ops (sales/purchases/expenses parsed from natural language), customer numbers get AI support replies from the knowledge base.
+- **Business Suite**: inventory, sales, expenses, customers, leads, funnels, landing pages, financial reports.
+- **Firebase Authentication**: email/password auth with ID tokens; manual approval workflow (PENDING → APPROVED) with admin panel; password reset emails.
+- **Firebase Storage**: original knowledge-base files persisted per organization (`organizations/{orgId}/documents/{docId}/...`).
+- **Streaming Conversations**: word-by-word streaming AI responses with citation sources.
+- **Helpdesk Inbox & Takeover**: pause the AI and chat directly with visitors.
+- **Operational Analytics**: daily message counts, trends, CSAT, top questions.
 
 ---
 
 ## Technology Stack
-- **Frontend Framework**: Next.js App Router (React, TypeScript)
-- **Styling**: Tailwind CSS (dynamic design tokens + custom CSS overrides)
-- **Database Engine**: PostgreSQL + pgvector (SQLite Dev Fallback)
-- **Object Relational Mapper (ORM)**: Prisma Client
-- **Security & Session**: Custom cookie-based JWT authentication and bcrypt password hashing
-- **RAG Ingestion**: `pdf-parse` (PDF extraction) and `mammoth` (DOCX extraction)
-- **AI Completion Provider**: OpenRouter API (defaults to Gemini 2.5 Flash)
+- **Frontend**: Next.js App Router (React, TypeScript), Tailwind CSS
+- **Database**: Cloud Firestore (collections mirror the old Prisma models)
+- **Auth**: Firebase Authentication (client SDK sign-in + admin-verified ID tokens)
+- **File Storage**: Firebase Storage (original uploaded documents)
+- **RAG Ingestion**: `pdf-parse`/`pdfreader` (PDF), `mammoth` (DOCX)
+- **AI Provider**: OpenRouter API (defaults to Gemini 2.5 Flash)
+- **Data layer**: `src/lib/firestore.ts` — Prisma-shaped helpers (findDocs/getDoc/createDoc/updateDocData/...)
 
 ---
 
-## RAG Processing Architecture
+## Architecture (Firebase)
 
 ```
-[Document Upload] ➔ [Text Extraction] ➔ [Recursive Chunking] ➔ [Vector Generation] ➔ [Database Storage]
-                                                                                            │
-[Visitor Question] ➔ [Vector Query] ➔ [Cosine Similarity Fetch] ➔ [Context Injection] ➔ [AI Stream]
+Browser (firebase client SDK)
+  └─ signIn / register / password reset
+  └─ AuthProvider patches window.fetch → attaches Authorization: Bearer <ID token>
+
+Next.js API routes (firebase-admin)
+  └─ getUserFromRequest() verifies the ID token → loads users/{uid} (+ organization)
+  └─ Firestore collections: users, organizations, chatbots, documents, documentChunks,
+     conversations, messages, analytics, products, productCategories, customers, sales,
+     saleItems, expenseCategories, expenses, leads, landingPages, funnels, funnelSteps,
+     emailCampaigns, emailLogs, whatsappAccounts, whatsappConversations, whatsappMessages,
+     apiKeys, platformSettings, announcements, websiteSources, knowledgeGaps, businessProfiles
+  └─ Firebase Storage: original knowledge-base files per org
+
+RAG flow (unchanged behavior)
+  [Document Upload] → Storage (original) + text extraction → chunking → embeddings → documentChunks
+  [Visitor Question] → embedding → fetch chunks → cosineSimilarity (JS) → context injection → AI stream
 ```
 
-1. **Extraction**: Documents are parsed (`pdf-parse`, `mammoth` or plain text).
-2. **Chunking**: Text is split into overlapping 800-character segments (150-char overlap) to retain page and sentence contexts.
-3. **Vectorizer**: We generate 384-dimension semantic vectors. 
-   - *Production Mode*: Queries OpenRouter/Cohere API.
-   - *Offline/Dev Fallback*: Runs a deterministic token-hash vectorizer that computes cosine similarities locally in JavaScript, ensuring zero-dependency local testing.
-4. **Similarity Engine**: Calculates dot product normalized cosine distances, returning the top-3 matching chunks to structure context guidelines for the LLM.
-
----
-
-## Database Architecture
-The database schema (`prisma/schema.prisma`) implements the following core tables:
-
-- `User`: Handles registration credentials and bcrypt hashes.
-- `Organization`: Manages multi-member team workspaces.
-- `Chatbot`: Houses AI agent instructions, styling colors, and greeting messages.
-- `Document`: Logs reference file properties and training states (`TRAINED`, `FAILED`, `PROCESSING`).
-- `DocumentChunk`: Stores chunked paragraphs and stringified vector arrays.
-- `Conversation`: Coordinates threads, visitor tracking tokens, and human takeover flags.
-- `Message`: Retains individual messages, sender types (`USER`, `AI`, `AGENT`), and citation links.
-- `Analytics`: Daily deflection tallies and performance stats.
+Conventions:
+- Document IDs are UUIDs; user doc id === Firebase Auth uid.
+- Dates are stored as ISO-8601 UTC strings (JSON-identical to the Prisma era; lexicographic == chronological).
+- Unique constraints (user email, org slug, landing-page slug per org, expense-category name per org, one WhatsAppAccount/BusinessProfile per org) are enforced with pre-check queries.
+- Cascade deletes (chatbot → documents → chunks → conversations → messages) are implemented in the routes.
 
 ---
 
 ## Installation & Local Setup
 
-### 1. Clone & Initialize Environment
-Verify Node.js LTS and Git are installed on your machine.
-```bash
-git clone <repository-url> supportiq-ai
-cd supportiq-ai
-```
-
-### 2. Configure Environment variables
-Copy the example environment settings:
-```bash
-cp .env.example .env
-```
-*(By default, this is pre-configured to run SQLite locally inside `dev.db` out of the box).*
-
-### 3. Install Dependencies
 ```bash
 npm install
-```
-
-### 4. Sync Database Schema
-Initialize your local database file and generate your Prisma client classes:
-```bash
-npx prisma db push
-```
-
-### 5. Start Development Server
-```bash
+cp .env.example .env.local   # fill in Firebase + OpenRouter values
 npm run dev
 ```
-Open [http://localhost:3000](http://localhost:3000) inside your browser.
+
+Firebase project setup:
+1. Create a project at https://console.firebase.google.com
+2. **Authentication → Sign-in method → enable Email/Password**
+3. **Firestore Database → Create database** (production or test mode)
+4. **Storage → Get started** (for original file persistence)
+5. Project Settings → General → Your apps → **Web app** → copy the `firebaseConfig` values into the `NEXT_PUBLIC_FIREBASE_*` env vars
+6. Project Settings → Service accounts → **Generate new private key** → copy `project_id`, `client_email`, `private_key` into the `FIREBASE_*` env vars
+
+Recommended Firestore security rules (all access is server-side via firebase-admin, which bypasses rules):
+```
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /{document=**} { allow read, write: if false; }
+  }
+}
+```
 
 ---
 
 ## Environment Variables
-Edit the `.env` file to persistent custom configurations:
-
-- `DATABASE_URL`: Set to `"file:./dev.db"` for SQLite, or your PostgreSQL string: `"postgresql://user:pass@host:5432/db?schema=public"`.
-- `JWT_SECRET`: Random hash string to encrypt visitor/user login sessions.
-- `OPENROUTER_API_KEY`: Input your OpenRouter API key. If empty, the backend triggers an interactive mock RAG stream that searches your uploaded documents and outputs matched sentences, allowing full offline verification!
-- `AI_MODEL`: Set to preferred model (e.g. `"google/gemini-2.5-flash"`).
-
----
-
-## Production Deployment
-
-### 1. Database Configuration (PostgreSQL + pgvector)
-When deploying to staging or production (e.g., Supabase or Neon):
-1. Enable `pgvector` extension in your database:
-   ```sql
-   CREATE EXTENSION IF NOT EXISTS vector;
-   ```
-2. Update your `.env`:
-   - Change `provider` in `prisma/schema.prisma` from `"sqlite"` to `"postgresql"`.
-   - Update `DATABASE_URL` to point to your live PostgreSQL instance.
-3. Push the migrations:
-   ```bash
-   npx prisma db push
-   ```
-
-### 2. Vercel Host Setup
-1. Push the project to GitHub.
-2. Link the repository inside your Vercel Dashboard.
-3. Add your environment variables: `DATABASE_URL`, `JWT_SECRET`, `OPENROUTER_API_KEY`, and `AI_MODEL`.
-4. Deploy. Vercel compiles the build bundle automatically using the configurations.
+See [.env.example](.env.example) for the full annotated list:
+- `FIREBASE_PROJECT_ID`, `FIREBASE_CLIENT_EMAIL`, `FIREBASE_PRIVATE_KEY`, `FIREBASE_STORAGE_BUCKET` (server/admin)
+- `NEXT_PUBLIC_FIREBASE_API_KEY`, `NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN`, `NEXT_PUBLIC_FIREBASE_PROJECT_ID`, `NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET`, `NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID`, `NEXT_PUBLIC_FIREBASE_APP_ID` (browser SDK)
+- `OPENROUTER_API_KEY`, `AI_MODEL` (AI)
+- `NEXT_PUBLIC_APP_URL`, `WHATSAPP_VERIFY_TOKEN`, `ADMIN_SETUP_KEY`
 
 ---
 
-## Troubleshooting & Windows SWC Compile Notes
-If compiling Next.js inside sandboxed Windows environments (e.g., Trae, Docker, or CI pipelines), you might encounter the native compilation error: `next-swc.win32-x64-msvc.node is not a valid Win32 application`.
+## Seeding
+```bash
+# default demo admin: admin@biztriach.com / password123
+npm run seed
 
-**How we solved this in SupportIQ AI**:
-1. We deleted the corrupted binary file located inside `node_modules/@next/swc-win32-x64-msvc`.
-2. We force-reinstalled the correct architecture package:
-   ```bash
-   npm install @next/swc-win32-x64-msvc --force
-   ```
-3. If compiling inside environments that completely block native binary bindings, we configure Babel compilation by adding a `.babelrc` file at the root:
-   ```json
-   {
-     "presets": ["next/babel"]
-   }
-   ```
-   and installing the `@babel/runtime` package:
-   ```bash
-   npm install --save-dev @babel/runtime
-   ```
-   *(We have cleared the Babel config now that a clean SWC binary is compiled, keeping compile times ultra-fast).*
+# custom admin
+node scripts/seed-firebase.js --email=you@example.com --password=secret --name="You" --org="Your Business"
+```
+Creates the Auth user, profile (ADMIN/APPROVED), organization, default chatbot, business profile, and default categories. Idempotent — safe to re-run.
+
+---
+
+## Production Deployment (Vercel)
+1. Push to GitHub (the Vercel project auto-deploys `main`).
+2. Set all env vars above in Vercel → Project → Settings → Environment Variables (Production + Preview).
+3. Run `npm run seed` once locally against production Firebase creds (or from a one-off job) to bootstrap the first admin.
+4. Admin approval workflow: new signups start as `PENDING`; approve them from `/dashboard/admin` (or pre-approve via the `ADMIN_EMAILS` list in `src/app/api/auth/register/route.ts`).
+
+---
+
+## Migration Notes (Supabase → Firebase)
+- Prisma + PostgreSQL replaced by Firestore via `src/lib/firestore.ts` helpers.
+- bcrypt/JWT cookie sessions replaced by Firebase Auth; API routes verify `Authorization: Bearer <ID token>` (attached transparently by `AuthProvider`).
+- `prisma.$transaction` (registration) → Firestore `runTransaction`.
+- `groupBy` (financial report) → fetch + JS reduce; sale items carry a denormalized `organizationId`.
+- pgvector was never actually used — embeddings were already JSON strings with JS cosine similarity, so RAG behavior is unchanged.
+- Original uploaded documents now persist in Firebase Storage (previously discarded after text extraction).
+- The old Supabase project (`biztriach-production`) can be paused/deleted once cut-over is verified.
