@@ -5,6 +5,7 @@ import { NextResponse } from "next/server";
 import { parseBusinessMessage, formatNaira } from "@/lib/businessParser";
 import { generateEmbedding, retrieveRelevantChunks } from "@/lib/rag";
 import { decryptKey } from "@/lib/apiKeys";
+import { chatCompletion, llmProvider } from "@/lib/llm";
 import {
   COL,
   findDocs,
@@ -540,50 +541,26 @@ ${history || "New conversation"}
 Customer phone: ${customerPhone}
 
 Rules:
-- Keep WhatsApp friendly, use emojis sparingly (✅, 📦, 💰 for business ops)
-- Under 100 words for support, unless explaining steps
+- SOUND HUMAN: Talk like a real person texting — natural, casual, flexible. Mirror the customer's energy and style. Everyday language, never corporate or robotic.
+- Keep replies short and punchy. Under 80 words for support, unless explaining steps.
+- Use emojis sparingly and naturally, like a real person would (✅, 📦, 💰 for business ops)
 - If you don't know, offer human takeover
 - For business ops, confirm what was logged
-- Always end with offer to help further
+- Always end with a natural offer to help further
 - Use *bold* for WhatsApp (not **)
-- Never say "as an AI"`;
+- Never say "as an AI" or "I'm an AI language model"`;
 
-    // Try LLM
-    const apiKey = process.env.OPENROUTER_API_KEY || process.env.OPENAI_API_KEY;
-    if (apiKey) {
-      try {
-        const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${apiKey}`,
-            "Content-Type": "application/json",
-            "HTTP-Referer": "https://biztriach.vercel.app"
-          },
-          body: JSON.stringify({
-            model: process.env.AI_MODEL || "google/gemini-2.5-flash",
-            messages: [
-              { role: "system", content: systemPrompt },
-              { role: "user", content: message }
-            ],
-            max_tokens: 320,
-            temperature: 0.7
-          })
-        });
-
-        if (res.ok) {
-          const data = await res.json();
-          const reply = data.choices?.[0]?.message?.content;
-          if (reply && reply.trim().length > 5) {
-            console.log(`[WhatsApp AI] Generated reply: ${reply.slice(0, 100)}...`);
-            return reply.trim();
-          }
-        } else {
-          const errText = await res.text();
-          console.warn(`[WhatsApp AI] LLM API error ${res.status}: ${errText.slice(0, 200)}`);
-        }
-      } catch (e) {
-        console.warn("[WhatsApp AI] LLM call failed", e);
-      }
+    // Try LLM (OpenAI or OpenRouter — unified provider layer in src/lib/llm.ts)
+    const llmReply = await chatCompletion(
+      [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: message }
+      ],
+      { maxTokens: 320, temperature: 0.8 }
+    );
+    if (llmReply) {
+      console.log(`[WhatsApp AI] Generated reply via ${llmProvider()}: ${llmReply.slice(0, 100)}...`);
+      return llmReply;
     }
 
     // Fallback replies - act well even without LLM

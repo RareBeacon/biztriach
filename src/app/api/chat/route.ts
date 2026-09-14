@@ -6,6 +6,7 @@ import { generateEmbedding, retrieveRelevantChunks } from "@/lib/rag";
 import { analyzeSentiment, analyzeSentimentLLM } from "@/lib/sentiment";
 import { classifyIntentKeyword, shouldEscalateConversation } from "@/lib/intent";
 import { rateLimiter, getRateLimitKey, RATE_LIMITS, rateLimitResponse } from "@/lib/rateLimit";
+import { llmBaseUrl, llmHeaders, chatModel } from "@/lib/llm";
 import {
   COL,
   getDoc,
@@ -15,8 +16,7 @@ import {
   FieldValue,
 } from "@/lib/firestore";
 
-const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY || "";
-const AI_MODEL = process.env.AI_MODEL || "google/gemini-2.5-flash";
+const LLM_API_KEY = process.env.OPENAI_API_KEY || process.env.OPENROUTER_API_KEY || "";
 
 export async function POST(req: Request) {
   try {
@@ -255,8 +255,8 @@ Rules:
 
     const encoder = new TextEncoder();
 
-    // 7. STREAMING RESPONSE - OpenRouter or Fallback
-    if (OPENROUTER_API_KEY) {
+    // 7. STREAMING RESPONSE - OpenAI / OpenRouter or Fallback
+    if (LLM_API_KEY) {
       const messagesPayload = [
         { role: "system", content: systemPrompt },
         ...history.slice(-8, -1).map(m => ({
@@ -267,19 +267,14 @@ Rules:
       ];
 
       try {
-        const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+        const response = await fetch(`${llmBaseUrl()}/chat/completions`, {
           method: "POST",
-          headers: {
-            Authorization: `Bearer ${OPENROUTER_API_KEY}`,
-            "Content-Type": "application/json",
-            "HTTP-Referer": "https://supportiq-ai.vercel.app",
-            "X-Title": "SupportIQ AI",
-          },
+          headers: llmHeaders(),
           body: JSON.stringify({
-            model: AI_MODEL,
+            model: chatModel(),
             messages: messagesPayload,
             stream: true,
-            temperature: 0.7,
+            temperature: 0.8,
             max_tokens: 600,
             top_p: 0.9
           }),

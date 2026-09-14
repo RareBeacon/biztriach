@@ -85,9 +85,16 @@ export async function getEffectiveApiConfig(organizationId: string, preferredPro
     provider = Object.keys(byokMap)[0] as ApiProvider;
     apiKey = byokMap[provider];
   } else {
-    // Use platform shared keys from env
-    provider = "openrouter";
-    apiKey = process.env.OPENROUTER_API_KEY || process.env.OPENAI_API_KEY || null;
+    // Use platform shared keys from env (OpenAI preferred, OpenRouter fallback)
+    const envOpenAI = process.env.OPENAI_API_KEY || null;
+    const envOpenRouter = process.env.OPENROUTER_API_KEY || null;
+    if (envOpenAI) {
+      provider = "openai";
+      apiKey = envOpenAI;
+    } else if (envOpenRouter) {
+      provider = "openrouter";
+      apiKey = envOpenRouter;
+    }
   }
 
   return {

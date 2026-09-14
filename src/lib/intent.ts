@@ -3,6 +3,8 @@
  * Hybrid keyword + LLM intent detection
  */
 
+import { chatCompletion, llmProvider } from "@/lib/llm";
+
 export type Intent =
   | "refund"
   | "shipping"
@@ -94,46 +96,32 @@ export function classifyIntentKeyword(message: string): IntentResult {
 // LLM-enhanced intent classification (optional)
 export async function classifyIntentLLM(message: string): Promise<IntentResult> {
   const fallback = classifyIntentKeyword(message);
-  const apiKey = process.env.OPENROUTER_API_KEY;
 
-  if (!apiKey || message.trim().length < 8) return fallback;
+  if (!llmProvider() || message.trim().length < 8) return fallback;
 
   try {
-    const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: process.env.AI_MODEL || "google/gemini-2.5-flash",
-        messages: [
-          {
-            role: "system",
-            content: `You are an intent classifier for customer support. Classify into one of: refund, shipping, account, billing, bug, feature_request, integration, pricing, cancellation, complaint, human_handoff, general. Return JSON: {"intent": "...", "confidence": 0-1}`
-          },
-          { role: "user", content: message.slice(0, 600) }
-        ],
-        max_tokens: 100,
-        temperature: 0.1,
-      }),
-    });
+    const content = await chatCompletion(
+      [
+        {
+          role: "system",
+          content: `You are an intent classifier for customer support. Classify into one of: refund, shipping, account, billing, bug, feature_request, integration, pricing, cancellation, complaint, human_handoff, general. Return JSON: {"intent": "...", "confidence": 0-1}`
+        },
+        { role: "user", content: message.slice(0, 600) }
+      ],
+      { maxTokens: 100, temperature: 0.1, responseFormatJson: true }
+    );
 
-    if (response.ok) {
-      const data = await response.json();
-      const content = data.choices?.[0]?.message?.content?.trim();
-      if (content) {
-        const jsonMatch = content.match(/\{[\s\S]*\}/);
-        if (jsonMatch) {
-          const parsed = JSON.parse(jsonMatch[0]);
-          if (parsed.intent && Object.keys(INTENT_KEYWORDS).includes(parsed.intent)) {
-            return {
-              intent: parsed.intent as Intent,
-              confidence: parsed.confidence || 0.85,
-              keywords: fallback.keywords,
-              shouldEscalate: ESCALATION_INTENTS.includes(parsed.intent as Intent)
-            };
-          }
+    if (content) {
+      const jsonMatch = content.match(/\{[\s\S]*\}/);
+      if (jsonMatch) {
+        const parsed = JSON.parse(jsonMatch[0]);
+        if (parsed.intent && Object.keys(INTENT_KEYWORDS).includes(parsed.intent)) {
+          return {
+            intent: parsed.intent as Intent,
+            confidence: parsed.confidence || 0.85,
+            keywords: fallback.keywords,
+            shouldEscalate: ESCALATION_INTENTS.includes(parsed.intent as Intent)
+          };
         }
       }
     }

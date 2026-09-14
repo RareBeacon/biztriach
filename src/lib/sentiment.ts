@@ -3,6 +3,8 @@
  * Lightweight, deterministic sentiment detection + LLM-enhanced fallback
  */
 
+import { chatCompletion, llmProvider } from "@/lib/llm";
+
 export type Sentiment = "positive" | "neutral" | "frustrated" | "angry" | "critical";
 export type Urgency = "low" | "medium" | "high" | "critical";
 
@@ -115,47 +117,33 @@ export function analyzeSentiment(message: string): SentimentResult {
   };
 }
 
-// Async LLM-enhanced sentiment for high-value conversations (optional, uses OpenRouter)
+// Async LLM-enhanced sentiment for high-value conversations (optional, OpenAI/OpenRouter)
 export async function analyzeSentimentLLM(message: string): Promise<SentimentResult> {
   const base = analyzeSentiment(message);
-  const apiKey = process.env.OPENROUTER_API_KEY;
 
-  if (!apiKey || message.length < 15) return base;
+  if (!llmProvider() || message.length < 15) return base;
 
   try {
-    const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: process.env.AI_MODEL || "google/gemini-2.5-flash",
-        messages: [
-          {
-            role: "user",
-            content: `Analyze sentiment for customer support. Return JSON only: {sentiment: "positive|neutral|frustrated|angry|critical", urgency: "low|medium|high|critical", score: -1 to 1, isEscalationNeeded: boolean}. Message: "${message.slice(0, 500)}"`
-          }
-        ],
-        max_tokens: 120,
-        response_format: { type: "json_object" } as any
-      }),
-    });
+    const content = await chatCompletion(
+      [
+        {
+          role: "user",
+          content: `Analyze sentiment for customer support. Return JSON only: {sentiment: "positive|neutral|frustrated|angry|critical", urgency: "low|medium|high|critical", score: -1 to 1, isEscalationNeeded: boolean}. Message: "${message.slice(0, 500)}"`
+        }
+      ],
+      { maxTokens: 120, responseFormatJson: true }
+    );
 
-    if (response.ok) {
-      const data = await response.json();
-      const content = data.choices?.[0]?.message?.content;
-      if (content) {
-        const parsed = JSON.parse(content);
-        return {
-          sentiment: parsed.sentiment || base.sentiment,
-          urgency: parsed.urgency || base.urgency,
-          score: typeof parsed.score === "number" ? parsed.score : base.score,
-          isEscalationNeeded: typeof parsed.isEscalationNeeded === "boolean" ? parsed.isEscalationNeeded : base.isEscalationNeeded,
-          flags: base.flags,
-          confidence: 0.9
-        };
-      }
+    if (content) {
+      const parsed = JSON.parse(content);
+      return {
+        sentiment: parsed.sentiment || base.sentiment,
+        urgency: parsed.urgency || base.urgency,
+        score: typeof parsed.score === "number" ? parsed.score : base.score,
+        isEscalationNeeded: typeof parsed.isEscalationNeeded === "boolean" ? parsed.isEscalationNeeded : base.isEscalationNeeded,
+        flags: base.flags,
+        confidence: 0.9
+      };
     }
   } catch (e) {
     console.warn("[Sentiment] LLM analysis failed, using deterministic fallback");

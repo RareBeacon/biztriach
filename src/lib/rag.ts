@@ -1,5 +1,6 @@
 import { PdfReader } from "pdfreader";
 import mammoth from "mammoth";
+import { createEmbeddings, llmProvider } from "@/lib/llm";
 
 // Biztriach RAG Engine v2 - Production Ready
 
@@ -135,37 +136,14 @@ export function splitTextIntoChunks(text: string, options: { chunkSize?: number;
 }
 
 export async function generateEmbedding(text: string, retry = 2): Promise<number[]> {
-  const apiKey = process.env.OPENROUTER_API_KEY;
   const trimmed = text.slice(0, 8000);
 
-  if (apiKey && apiKey.trim() !== "") {
+  if (llmProvider()) {
     for (let attempt = 0; attempt <= retry; attempt++) {
       try {
-        const controller = new AbortController();
-        const timeout = setTimeout(() => controller.abort(), 15000);
-
-        const response = await fetch("https://openrouter.ai/api/v1/embeddings", {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${apiKey}`,
-            "Content-Type": "application/json",
-            "HTTP-Referer": "https://biztriach.vercel.app",
-          },
-          body: JSON.stringify({
-            model: "cohere/embed-english-v3.0",
-            input: [trimmed],
-          }),
-          signal: controller.signal,
-        });
-        clearTimeout(timeout);
-
-        if (response.ok) {
-          const data = await response.json();
-          if (data.data?.[0]?.embedding) return data.data[0].embedding;
-        } else if (response.status === 429 && attempt < retry) {
-          await sleep(1000 * (attempt + 1));
-          continue;
-        }
+        const result = await createEmbeddings([trimmed]);
+        if (result && result[0]) return result[0];
+        if (attempt < retry) await sleep(500 * (attempt + 1));
       } catch (e) {
         if (attempt < retry) await sleep(500 * (attempt + 1));
       }
@@ -176,28 +154,12 @@ export async function generateEmbedding(text: string, retry = 2): Promise<number
 }
 
 export async function generateEmbeddingsBatch(texts: string[], concurrent = 5): Promise<number[][]> {
-  const apiKey = process.env.OPENROUTER_API_KEY;
 
-  if (apiKey && apiKey.trim() !== "" && texts.length > 0) {
+  if (llmProvider() && texts.length > 0) {
     try {
-      const response = await fetch("https://openrouter.ai/api/v1/embeddings", {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${apiKey}`,
-          "Content-Type": "application/json",
-          "HTTP-Referer": "https://biztriach.vercel.app",
-        },
-        body: JSON.stringify({
-          model: "cohere/embed-english-v3.0",
-          input: texts.map(t => t.slice(0, 8000)),
-        }),
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        if (data.data && Array.isArray(data.data) && data.data.length === texts.length) {
-          return data.data.map((item: any) => item.embedding);
-        }
+      const result = await createEmbeddings(texts.map(t => t.slice(0, 8000)));
+      if (result) {
+        return result;
       }
     } catch (e) {
       console.warn("[RAG] Batch API failed, concurrent fallback");
