@@ -97,7 +97,7 @@ export default function BiztriachOverview() {
 
   const quickMetrics = [
     { label: "AI Conversations", value: "1,282", icon: Bot, sub: "Website + WhatsApp" },
-    { label: "Leads", value: "86", icon: Users, sub: "From landing pages" },
+    { label: "Customers", value: String(financials?.totalCustomers || 0), icon: Users, sub: "Your business" },
     { label: "Sales Today", value: String(financials?.totalSalesToday || 0), icon: ShoppingBag, sub: "Via all channels" },
     { label: "Expenses Today", value: financials ? `₦${financials.todayExpenses.toLocaleString()}` : "₦0", icon: Receipt, sub: "Tracked automatically" },
   ];

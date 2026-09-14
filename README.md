@@ -1,6 +1,6 @@
 # Biztriach — AI Business Platform (Firebase Edition)
 
-Biztriach is an AI business platform for SMEs: one AI employee that handles customer support, sales, inventory, WhatsApp business ops, landing pages, and financial reports. This is **v3.0 — fully migrated from Supabase/Postgres to Firebase** (Firestore + Firebase Auth + Firebase Storage).
+Biztriach is an AI business platform for SMEs: one AI employee that handles customer support, sales, inventory, WhatsApp business ops, and financial reports. This is **v3.0 — fully migrated from Supabase/Postgres to Firebase** (Firestore + Firebase Auth + Firebase Storage).
 
 ## Table of Contents
 1. [Product Overview](#product-overview)
@@ -23,7 +23,7 @@ Biztriach serves small-and-medium businesses by providing instant customer suppo
 ## Key Features
 - **AI Support Chatbots (RAG)**: ingest PDF, DOCX, TXT, Markdown and website crawls; 384-dim embeddings; hybrid semantic + keyword retrieval with citations.
 - **WhatsApp Cloud API (dual-mode)**: owner numbers run business ops (sales/purchases/expenses parsed from natural language), customer numbers get AI support replies from the knowledge base.
-- **Business Suite**: inventory, sales, expenses, customers, leads, funnels, landing pages, financial reports.
+- **Business Suite**: inventory, sales, expenses, customers, financial reports.
 - **Firebase Authentication**: email/password auth with ID tokens; manual approval workflow (PENDING → APPROVED) with admin panel; password reset emails.
 - **Firebase Storage**: original knowledge-base files persisted per organization (`organizations/{orgId}/documents/{docId}/...`).
 - **Streaming Conversations**: word-by-word streaming AI responses with citation sources.
@@ -54,8 +54,7 @@ Next.js API routes (firebase-admin)
   └─ getUserFromRequest() verifies the ID token → loads users/{uid} (+ organization)
   └─ Firestore collections: users, organizations, chatbots, documents, documentChunks,
      conversations, messages, analytics, products, productCategories, customers, sales,
-     saleItems, expenseCategories, expenses, leads, landingPages, funnels, funnelSteps,
-     emailCampaigns, emailLogs, whatsappAccounts, whatsappConversations, whatsappMessages,
+     saleItems, expenseCategories, expenses,
      apiKeys, platformSettings, announcements, websiteSources, knowledgeGaps, businessProfiles
   └─ Firebase Storage: original knowledge-base files per org
 
@@ -67,7 +66,7 @@ RAG flow (unchanged behavior)
 Conventions:
 - Document IDs are UUIDs; user doc id === Firebase Auth uid.
 - Dates are stored as ISO-8601 UTC strings (JSON-identical to the Prisma era; lexicographic == chronological).
-- Unique constraints (user email, org slug, landing-page slug per org, expense-category name per org, one WhatsAppAccount/BusinessProfile per org) are enforced with pre-check queries.
+- Unique constraints (user email, org slug, expense-category name per org, one WhatsAppAccount/BusinessProfile per org) are enforced with pre-check queries.
 - Cascade deletes (chatbot → documents → chunks → conversations → messages) are implemented in the routes.
 
 ---

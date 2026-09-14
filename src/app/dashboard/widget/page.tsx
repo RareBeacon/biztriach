@@ -13,7 +13,7 @@ export default function WidgetPage(){
 
   return(
     <div className="space-y-6">
-      <div><h1 className="font-outfit text-[26px] font-bold">Website AI Widget</h1><p className="text-[13px] text-slate-500">Install script on any website or landing page. Works with custom theme color, greeting, brand personality. Existing widget remains compatible.</p></div>
+      <div><h1 className="font-outfit text-[26px] font-bold">Website AI Widget</h1><p className="text-[13px] text-slate-500">Install script on any website. Works with custom theme color, greeting, brand personality. Existing widget remains compatible.</p></div>
 
       <div className="grid lg:grid-cols-12 gap-6">
         <div className="lg:col-span-7 rounded-[20px] bg-white border shadow-soft p-6">

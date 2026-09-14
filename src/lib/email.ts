@@ -65,7 +65,7 @@ export const emailTemplates = {
           <ul style="color: #475569; line-height: 1.8; padding-left: 20px;">
             <li>Make your subscription payment (instructions in dashboard)</li>
             <li>Admin verifies and approves your account</li>
-            <li>You get full access to AI agents, inventory, sales, WhatsApp, landing pages & more</li>
+            <li>You get full access to AI agents, inventory, sales, WhatsApp & more</li>
           </ul>
           <p style="color: #64748b; font-size: 14px; margin-top: 24px;">Questions? Reply to this email - we respond within 2 hours.</p>
         </div>
@@ -90,8 +90,6 @@ export const emailTemplates = {
             <li>🤖 AI Customer Support Agents</li>
             <li>📦 Inventory & Sales Management</li>
             <li>💬 WhatsApp Business Integration</li>
-            <li>🎨 Landing Page & Funnel Builder</li>
-            <li>📧 Email Campaigns & Leads</li>
             <li>📊 Financial Dashboard & AI Reports</li>
           </ul>
           <a href="${process.env.NEXT_PUBLIC_APP_URL || "https://biztriach.vercel.app"}/login" style="display: inline-block; background: #7c3aed; color: white; padding: 12px 24px; border-radius: 10px; text-decoration: none; font-weight: 600; margin-top: 16px;">Access Dashboard →</a>

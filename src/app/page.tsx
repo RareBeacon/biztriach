@@ -8,7 +8,7 @@ import {
   ArrowRight, Bot, BarChart3, Shield, Sparkles,
   MessageCircle, Zap, Globe, FileText, ShoppingBag, TrendingUp,
   Package, Receipt, Users, Wallet, MessageSquare, Building2,
-  Layers, Target, Mail, Smartphone, ChevronDown, Check, Play,
+  Smartphone, ChevronDown, Check, Play,
   ArrowUpRight, Star
 } from "lucide-react";
 
@@ -32,7 +32,7 @@ export default function BiztriachLandingBright() {
     },
     {
       name: "Growth", desc: "For growing SMEs ready to automate sales + support.", price: 49, priceYearly: 39,
-      features: ["3 AI Employees", "2,500 conversations/mo", "50 docs + website crawl", "Unlimited products", "WhatsApp business parsing", "Landing page builder", "Funnel builder", "Leads & Email campaigns", "Expense tracking", "Human takeover"],
+      features: ["3 AI Employees", "2,500 conversations/mo", "50 docs + website crawl", "Unlimited products", "WhatsApp business parsing", "Website chat widget", "Expense tracking", "Human takeover"],
       cta: "Start Growth", popular: true, color: "violet"
     },
     {
@@ -46,7 +46,7 @@ export default function BiztriachLandingBright() {
     { q: "How does WhatsApp business operations work?", a: "Simply send a message like 'Sold 5 bags of rice for ₦85,000 each' to your connected WhatsApp. Biztriach AI parses it automatically — updates inventory, calculates profit (₦425k revenue), logs customer, and generates daily report. No spreadsheets needed. It understands Pidgin, English, and mixed formats like '85k' or '85,000'." },
     { q: "Can one AI employee handle both support and sales?", a: "Yes! That's the core vision of Biztriach. You train your AI once with your product list, price list, policies, and FAQs. It then answers customer questions on website chat, sells via WhatsApp, tracks inventory when you send 'bought 100 bags', and even generates marketing copy. Same brain, multiple channels." },
     { q: "What knowledge sources can I upload?", a: "Everything: PDFs, Word, Excel price lists, CSV sales history, PowerPoint trainings, images of invoices (OCR), product catalogs, website URLs (we crawl and index), FAQs. The AI Knowledge Engine 2.0 processes, chunks, embeds with 384-dim vectors, and builds hybrid semantic + keyword retrieval for 95% accurate answers." },
-    { q: "How is data kept separate for each business?", a: "Biztriach is multi-tenant by design. Every business gets completely isolated data — its own AI agents, documents, inventory, sales, customers, landing pages, WhatsApp. No cross-business access ever. We use organizationId isolation on every query plus PostgreSQL row-level security ready." },
+    { q: "How is data kept separate for each business?", a: "Biztriach is multi-tenant by design. Every business gets completely isolated data — its own AI agents, documents, inventory, sales, customers, WhatsApp. No cross-business access ever. We use organizationId isolation on every query in Firestore, verified by server-only Firebase Admin access." },
   ];
 
   return (
@@ -99,7 +99,7 @@ export default function BiztriachLandingBright() {
             </h1>
 
             <p className="text-[17px] md:text-[19px] leading-relaxed text-slate-600 max-w-[720px] mx-auto mt-6 font-inter">
-              Train once, deploy everywhere. Customer support, sales tracking, inventory, WhatsApp ops, landing pages, and daily profit reports — all automated. Built for African SMEs with brighter future.
+              Train once, deploy everywhere. Customer support, sales tracking, inventory, WhatsApp ops, and daily profit reports — all automated. Built for African SMEs with brighter future.
             </p>
 
             <div className="flex flex-col sm:flex-row gap-3 justify-center mt-8">
@@ -244,8 +244,8 @@ export default function BiztriachLandingBright() {
                 <div className="mt-4 flex flex-wrap gap-2">{["Sales", "Purchases", "Expenses", "Customers"].map((t) => <span key={t} className="text-[11px] px-3 py-1 rounded-full bg-white border-2 border-emerald-200 text-emerald-700 font-bold shadow-sm">{t}</span>)}</div>
               </div>
               <div className="rounded-[24px] bg-gradient-to-br from-amber-50 to-orange-50 border-2 border-amber-200 p-6 shadow-[0_4px_16px_rgba(245,158,11,0.08)] hover:shadow-[0_8px_32px_rgba(245,158,11,0.15)] hover:-translate-y-1 transition-all">
-                <div className="flex items-center gap-3 mb-3"><div className="w-10 h-10 rounded-[14px] bg-amber-500 border-2 border-amber-600 flex items-center justify-center shadow"><Layers className="w-5 h-5 text-white" /></div><h4 className="font-bold text-slate-900">Landing + Funnels ✨</h4></div>
-                <p className="text-[14px] text-slate-600 leading-relaxed">AI copywriter builds pages, forms capture leads, funnel automates: page → form → email → AI follow-up → customer.</p>
+                <div className="flex items-center gap-3 mb-3"><div className="w-10 h-10 rounded-[14px] bg-amber-500 border-2 border-amber-600 flex items-center justify-center shadow"><Globe className="w-5 h-5 text-white" /></div><h4 className="font-bold text-slate-900">Support on every channel 🌐</h4></div>
+                <p className="text-[14px] text-slate-600 leading-relaxed">One AI brain answers on WhatsApp and your website widget — same knowledge, same voice, 24/7. Humans can take over anytime.</p>
               </div>
             </div>
 

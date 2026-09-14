@@ -7,8 +7,8 @@ import { DashboardProvider, useDashboard } from "@/context/DashboardContext";
 import {
   Bot, LayoutDashboard, Settings, BarChart3, Database, MessageSquare,
   LogOut, Plus, ChevronDown, User, Sparkles, Package, ShoppingBag,
-  Receipt, Wallet, MessageCircle, Globe, Mail, Target, Layers,
-  Users, FileText, Smartphone, Key, Shield, Building2, Megaphone,
+  Receipt, Wallet, MessageCircle, Globe,
+  Smartphone, Key, Shield, Building2,
   Zap, ChevronRight, Search, Bell, Command
 } from "lucide-react";
 
@@ -38,15 +38,6 @@ function Sidebar() {
         { label: "Website Sources", icon: Globe, href: "/dashboard/knowledge/website", badge: "NEW", color: "cyan" },
         { label: "Widget", icon: Smartphone, href: "/dashboard/widget", badge: null, color: "emerald" },
         { label: "Live Inbox", icon: MessageSquare, href: "/dashboard/conversations", badge: null, color: "violet" },
-      ]
-    },
-    {
-      title: "Marketing",
-      items: [
-        { label: "Landing Pages", icon: Layers, href: "/dashboard/landing-pages", badge: "AI", color: "amber" },
-        { label: "Funnels", icon: Target, href: "/dashboard/funnels", badge: null, color: "violet" },
-        { label: "Leads", icon: Users, href: "/dashboard/leads", badge: null, color: "emerald" },
-        { label: "Email Campaigns", icon: Mail, href: "/dashboard/email", badge: null, color: "cyan" },
       ]
     },
     {

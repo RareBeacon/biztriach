@@ -111,5 +111,5 @@ function generateInsight(revenue: number, expenses: number, lowStock: any[], bes
   if (revenue === 0 && expenses === 0) return "No sales recorded yet. Start tracking via dashboard or WhatsApp: 'Sold 5 bags of rice for ₦85k'.";
   if (lowStock.length > 0) return `Attention: ${lowStock.length} products low on stock (${lowStock[0]?.name}). Restock soon to avoid lost sales. Your best seller is ${best?.productName || "still emerging"}.`;
   if (revenue > expenses) return `Great day! Profit of ₦${(revenue - expenses).toLocaleString()} today. ${best?.productName ? `${best.productName} is driving sales.` : ""} Keep up the momentum.`;
-  return `Expenses exceeded revenue today. Review spending and focus on high-margin products. Consider creating a landing page funnel to boost sales.`;
+  return `Expenses exceeded revenue today. Review spending and focus on high-margin products. Consider promoting your top sellers on WhatsApp to boost sales.`;
 }
