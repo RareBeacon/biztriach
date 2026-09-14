@@ -559,8 +559,10 @@ Rules:
       { maxTokens: 320, temperature: 0.8 }
     );
     if (llmReply) {
-      console.log(`[WhatsApp AI] Generated reply via ${llmProvider()}: ${llmReply.slice(0, 100)}...`);
-      return llmReply;
+      // WhatsApp formatting: models often emit markdown **bold** — convert to WhatsApp *bold*
+      const waReply = llmReply.replace(/\*\*(.+?)\*\*/g, "*$1*").replace(/\n{3,}/g, "\n\n");
+      console.log(`[WhatsApp AI] Generated reply via ${llmProvider()}: ${waReply.slice(0, 100)}...`);
+      return waReply;
     }
 
     // Fallback replies - act well even without LLM
