@@ -73,21 +73,6 @@ export async function POST(req: Request) {
   try {
     const body = await req.json();
 
-    // ── TEMPORARY DEBUG: log every webhook delivery attempt for diagnosis ──
-    try {
-      const dbgValue = body?.entry?.[0]?.changes?.[0]?.value;
-      await createDoc("webhookDebug", {
-        receivedAt: new Date().toISOString(),
-        object: body?.object || null,
-        hasMessages: !!dbgValue?.messages,
-        hasStatuses: !!dbgValue?.statuses,
-        payload: JSON.stringify(body).slice(0, 4000),
-      });
-      console.log("[WhatsApp DEBUG] Logged webhook delivery attempt to webhookDebug collection");
-    } catch (dbgErr) {
-      console.error("[WhatsApp DEBUG] Failed to log webhook:", (dbgErr as Error).message);
-    }
-
     // Meta sends different payload types - handle all
     const entry = body.entry?.[0];
     const changes = entry?.changes?.[0];
