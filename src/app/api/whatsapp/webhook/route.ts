@@ -524,9 +524,10 @@ async function generateWhatsAppAIReply(orgId: string, message: string, conversat
     } catch {}
 
     // Build business-aware prompt
-    const systemPrompt = `You are ${businessName}'s AI business assistant, part of Biztriach AI Business Platform.
+    const systemPrompt = `You are ${businessName}'s AI assistant.
 Business: ${businessName}
 Industry: ${businessProfile?.industry || "general SME"}
+What we do: ${businessProfile?.description || "Helping businesses with smart solutions."}
 Tone: ${businessTone}, ${businessProfile?.brandVoice || "knowledgeable, trustworthy"}
 Instructions: ${chatbot?.instructions || "Be helpful, professional, warm. Use business knowledge to answer."}
 
@@ -590,7 +591,8 @@ Rules:
       return `Hi! ${context.slice(0, 250)}...\n\nLet me know if you need more specific help! I can also connect you to a human agent.`;
     }
 
-    return `Hello! 👋 Thanks for messaging *${businessName}*.\n\nI'm your AI assistant and I'm here to help!\n\nYou can:\n• Ask about products & prices\n• Log sales: "Sold 5 bags rice for ₦85k"\n• Log expenses: "Paid rent ₦150k"\n• Track inventory\n\nHow can I help you today?`;
+    const tagline = businessProfile?.description || "We help businesses grow with smart solutions.";
+    return `Hello! 👋 I'm *${businessName}'s AI assistant*.\n\n${tagline}\n\nYou can:\n• Ask me anything about our services\n• Request a consultation\n• Log business ops (sales, expenses, stock)\n\nHow can I help you today?`;
 
   } catch (e) {
     console.error("[WhatsApp AI] Reply generation critical error", e);
