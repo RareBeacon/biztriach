@@ -16,7 +16,7 @@ import {
   FieldValue,
 } from "@/lib/firestore";
 
-const LLM_API_KEY = process.env.OPENAI_API_KEY || process.env.OPENROUTER_API_KEY || "";
+const LLM_API_KEY = process.env.OPENAI_API_KEY || process.env.OPENROUTER_API_KEY || process.env.HUGGINGFACE_API_KEY || "";
 
 export async function POST(req: Request) {
   try {
