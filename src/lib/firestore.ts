@@ -107,13 +107,42 @@ function applyOpts<T extends DocumentData>(base: CollectionReference, opts?: Que
   return q;
 }
 
-/** SELECT many — like prisma.<model>.findMany({...}) */
-export async function findDocs<T = DocumentData>(
-  collection: string,
-  opts?: QueryOpts
-): Promise<T[]> {
+/** Detect Firestore's "composite index required" precondition errors. */
+function isIndexRequiredError(e: any): boolean {
+  return (
+    e?.code === 5 || // FAILED_PRECONDITION
+    e?.codePrefix === "FAILED_PRECONDITION" ||
+    /requires an index|FAILED_PRECONDITION/i.test(e?.message || "")
+  );
+}
+
+/** JS-side predicate matching for a single [field, op, value] filter. */
+function matchesFilter(row: any, field: string, op: string, value: any): boolean {
+  const v = row[field];
+  switch (op) {
+    case "==": return v === value;
+    case "!=": return v !== value;
+    case "in": return Array.isArray(value) && value.includes(v);
+    case "array-contains": return Array.isArray(v) && v.includes(value);
+    case ">": return v > value;
+    case ">=": return v >= value;
+    case "<": return v < value;
+    case "<=": return v <= value;
+    default: return true;
+  }
+}
+
+function compareValues(a: any, b: any): number {
+  if (a === b) return 0;
+  if (a == null) return -1;
+  if (b == null) return 1;
+  if (typeof a === "number" && typeof b === "number") return a - b;
+  return String(a) < String(b) ? -1 : 1;
+}
+
+/** Direct server-side query (composite indexes may be required). */
+async function queryDirect<T>(collection: string, opts?: QueryOpts): Promise<T[]> {
   let q: Query<DocumentData> = applyOpts<DocumentData>(col(collection), opts);
-  // Offset pagination via slice (SME-scale data; keeps skip/take semantics).
   const skip = opts?.skip ?? 0;
   if (skip > 0) {
     q = q.limit((opts?.limit ?? 0) + skip);
@@ -121,6 +150,72 @@ export async function findDocs<T = DocumentData>(
   const snap = await q.get();
   const rows = snapToArray<T>(snap);
   return skip > 0 ? rows.slice(skip) : rows;
+}
+
+/**
+ * Fallback query when Firestore requires a composite index that doesn't exist.
+ * Strategy: serve the most selective SINGLE-field equality filter server-side
+ * (single-field indexes always exist), then apply any remaining filters,
+ * ordering, skip and limit in JavaScript. Safe at SME data scale.
+ */
+async function queryFallback<T>(collection: string, opts?: QueryOpts): Promise<T[]> {
+  const where = opts?.where || [];
+  const SCAN_CAP = 5000;
+
+  // Pick one server-side filter: first '==', else first 'in'.
+  const eqIdx = where.findIndex(([op]) => op === "==");
+  const inIdx = where.findIndex(([op]) => op === "in");
+  const primaryIdx = eqIdx >= 0 ? eqIdx : inIdx;
+
+  let rows: any[] | null = null;
+  if (primaryIdx >= 0) {
+    try {
+      const [f, op, v] = where[primaryIdx];
+      const q = col(collection).where(f, op as WhereFilterOp, v).limit(SCAN_CAP);
+      rows = snapToArray<any>(await q.get());
+    } catch {
+      rows = null; // single-field filter failed unexpectedly — fall through to scan
+    }
+  }
+  if (rows === null) {
+    rows = snapToArray<any>(await col(collection).limit(SCAN_CAP).get());
+  }
+
+  // Apply ALL filters in JS (including the primary one — idempotent for ==).
+  let filtered = rows.filter((row) => where.every(([f, op, v]) => matchesFilter(row, f, op, v)));
+
+  // Emulate orderBy.
+  if (opts?.orderBy?.length) {
+    for (const [field, dir] of [...opts.orderBy].reverse()) {
+      filtered.sort((a, b) => (dir === "desc" ? -compareValues(a[field], b[field]) : compareValues(a[field], b[field])));
+    }
+  }
+
+  // Emulate skip/limit.
+  const skip = opts?.skip ?? 0;
+  if (skip > 0) filtered = filtered.slice(skip);
+  if (opts?.limit != null) filtered = filtered.slice(0, opts.limit);
+
+  return filtered as T[];
+}
+
+/** SELECT many — like prisma.<model>.findMany({...}) (index-requirement resilient) */
+export async function findDocs<T = DocumentData>(
+  collection: string,
+  opts?: QueryOpts
+): Promise<T[]> {
+  try {
+    return await queryDirect<T>(collection, opts);
+  } catch (e) {
+    if (isIndexRequiredError(e)) {
+      console.warn(
+        `[Firestore] Composite index missing for ${collection} — using resilient fallback. ` +
+        `Consider creating the index for large datasets.`
+      );
+      return await queryFallback<T>(collection, opts);
+    }
+    throw e;
+  }
 }
 
 /** SELECT one by id — like prisma.<model>.findUnique({ where: { id } }) */
@@ -147,19 +242,33 @@ export async function findUniqueBy<T = DocumentData>(
   return { ...(d.data() as T), id: d.id };
 }
 
-/** SELECT one by composite key — like findUnique({ where: { a_x_b } }) */
+/** SELECT one by composite key — like findUnique({ where: { a_x_b } }) (index-resilient) */
 export async function findUniqueByComposite<T = DocumentData>(
   collection: string,
   fields: Record<string, any>
 ): Promise<T | null> {
-  let q: Query<DocumentData> = col(collection);
-  for (const [f, v] of Object.entries(fields)) {
-    q = q.where(f, "==", v);
+  const entries = Object.entries(fields).filter(([, v]) => v != null);
+  if (!entries.length) return null;
+  try {
+    let q: Query<DocumentData> = col(collection);
+    for (const [f, v] of entries) {
+      q = q.where(f, "==", v);
+    }
+    const snap = await q.limit(1).get();
+    if (snap.empty) return null;
+    const d = snap.docs[0];
+    return { ...(d.data() as T), id: d.id };
+  } catch (e) {
+    if (isIndexRequiredError(e) && entries.length >= 2) {
+      // Serve the first field server-side, match the rest in JS.
+      const [f0, v0] = entries[0];
+      const rest = entries.slice(1);
+      const snap = await col(collection).where(f0, "==", v0).limit(5000).get();
+      const hit = snap.docs.find((d) => rest.every(([f, v]) => (d.data() as any)[f] === v));
+      return hit ? { ...(hit.data() as T), id: hit.id } : null;
+    }
+    throw e;
   }
-  const snap = await q.limit(1).get();
-  if (snap.empty) return null;
-  const d = snap.docs[0];
-  return { ...(d.data() as T), id: d.id };
 }
 
 /** INSERT — like prisma.<model>.create({ data }) */
@@ -240,11 +349,19 @@ export async function deleteManyDocs(
   return rows.length;
 }
 
-/** COUNT — like prisma.<model>.count({ where }) */
+/** COUNT — like prisma.<model>.count({ where }) (index-requirement resilient) */
 export async function countDocs(collection: string, opts?: QueryOpts): Promise<number> {
-  let q: Query<DocumentData> = applyOpts<DocumentData>(col(collection), opts);
-  const snap = await q.count().get();
-  return snap.data().count;
+  try {
+    let q: Query<DocumentData> = applyOpts<DocumentData>(col(collection), opts);
+    const snap = await q.count().get();
+    return snap.data().count;
+  } catch (e) {
+    if (isIndexRequiredError(e)) {
+      const rows = await findDocs(collection, { where: opts?.where, limit: 5000 });
+      return rows.length;
+    }
+    throw e;
+  }
 }
 
 /**
