@@ -47,6 +47,66 @@ export default function WhatsAppPage() {
 
   useEffect(() => { load(); }, []);
 
+  // ── Embedded Signup (self-serve connection, no copy-pasting) ──
+  const [esStatus, setEsStatus] = useState<any>(null);
+  const [esBusy, setEsBusy] = useState(false);
+  const [esMsg, setEsMsg] = useState<string | null>(null);
+
+  useEffect(() => {
+    fetch("/api/whatsapp/embedded-signup")
+      .then((r) => r.json())
+      .then(setEsStatus)
+      .catch(() => {});
+  }, []);
+
+  const launchEmbeddedSignup = () => {
+    const appId = esStatus?.appId;
+    const configId = esStatus?.configId;
+    if (!appId || !configId) {
+      setEsMsg("Embedded Signup isn't fully configured yet — follow the checklist below, or use manual connect.");
+      return;
+    }
+    setEsBusy(true);
+    setEsMsg(null);
+    const doLogin = () => {
+      (window as any).FB.login(async (response: any) => {
+        if (response?.authResponse?.code) {
+          try {
+            const res = await fetch("/api/whatsapp/embedded-signup", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ code: response.authResponse.code }),
+            });
+            const data = await res.json();
+            if (res.ok && data.connected) {
+              setEsMsg(`✅ Connected ${data.phone || "your number"}! Webhooks subscribed automatically.`);
+              load();
+            } else {
+              setEsMsg("⚠️ " + (data.error || "Signup failed. Please try again."));
+            }
+          } catch (e: any) {
+            setEsMsg("⚠️ " + e.message);
+          }
+        } else {
+          setEsMsg("Signup cancelled.");
+        }
+        setEsBusy(false);
+      }, {
+        config_id: configId,
+        response_type: "code",
+        override_default_response_type: true,
+        extras: { setup: {}, featureType: "", sessionInfoVersion: "3" },
+      });
+    };
+    if ((window as any).FB) { doLogin(); return; }
+    (window as any).fbAsyncInit = () => doLogin();
+    const s = document.createElement("script");
+    s.src = "https://connect.facebook.net/en_US/sdk.js";
+    s.async = true;
+    s.crossOrigin = "anonymous";
+    document.body.appendChild(s);
+  };
+
   const handleCopy = (text: string, id: string) => {
     navigator.clipboard.writeText(text);
     setCopied(id);
@@ -124,6 +184,44 @@ export default function WhatsAppPage() {
                 <span className="flex-1">{form.verifyToken || "biztriach_verify"}</span>
                 {copied === "vt" ? <Check className="w-4 h-4 text-emerald-600 shrink-0" /> : <Copy className="w-4 h-4 text-slate-400 group-hover:text-violet-600 shrink-0" />}
               </button>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Embedded Signup — self-serve connection */}
+      <div className="console-card p-6">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div>
+            <h3 className="font-outfit text-[16px] font-semibold flex items-center gap-2">
+              <Zap className="w-4 h-4 text-violet-600" /> Connect your WhatsApp in 3 clicks
+            </h3>
+            <p className="text-[12.5px] text-slate-500 mt-1 max-w-xl">
+              Log in with Facebook, pick your business, verify your number by SMS — tokens, webhooks and routing are handled automatically. No developer dashboard needed.
+            </p>
+          </div>
+          {esStatus?.configured ? (
+            <button onClick={launchEmbeddedSignup} disabled={esBusy} className="btn-primary shrink-0">
+              {esBusy ? "Connecting…" : account?.isConnected ? "Connect a different number" : "Connect WhatsApp"}
+            </button>
+          ) : (
+            <span className="pill-amber shrink-0">One-time setup needed</span>
+          )}
+        </div>
+        {esMsg && (
+          <div className="mt-3 text-[12.5px] rounded-lg bg-slate-50 border border-slate-200 px-3.5 py-2.5 text-slate-700">{esMsg}</div>
+        )}
+        {esStatus && !esStatus.configured && (
+          <div className="mt-4 rounded-lg bg-slate-50 border border-slate-200 p-4 space-y-2.5">
+            <div className="text-[11px] font-bold uppercase tracking-widest text-slate-400">Finish activation (one-time, in Meta + Vercel)</div>
+            <ol className="text-[12.5px] text-slate-600 space-y-1.5 list-decimal pl-5">
+              <li>Meta dashboard → your app → add the product <strong>Facebook Login for Business</strong> → create an Embedded Signup config → set its Config ID as the env var <code className="font-mono text-[11px] bg-white border border-slate-200 px-1 rounded">NEXT_PUBLIC_ES_CONFIG_ID</code> on Vercel.</li>
+              <li>Set <code className="font-mono text-[11px] bg-white border border-slate-200 px-1 rounded">META_APP_SECRET</code> on Vercel (App Dashboard → Settings → Basic → App secret).</li>
+              <li>Add <code className="font-mono text-[11px] bg-white border border-slate-200 px-1 rounded">{esStatus.redirectUri}</code> under Facebook Login → Settings → Valid OAuth Redirect URIs.</li>
+              <li>Redeploy on Vercel — this card becomes a one-click connect button for every customer.</li>
+            </ol>
+            <div className="text-[11.5px] text-slate-400 pt-1 border-t border-slate-200">
+              App ID: <span className="font-mono">{esStatus.appId || "—"}</span> · App secret: {esStatus.hasSecret ? "✅ set" : "❌ missing"} · Signup config: {esStatus.configId ? "✅ set" : "❌ missing"}
             </div>
           </div>
         )}

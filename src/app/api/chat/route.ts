@@ -7,6 +7,7 @@ import { analyzeSentiment, analyzeSentimentLLM } from "@/lib/sentiment";
 import { classifyIntentKeyword, shouldEscalateConversation } from "@/lib/intent";
 import { rateLimiter, getRateLimitKey, RATE_LIMITS, rateLimitResponse } from "@/lib/rateLimit";
 import { llmBaseUrl, llmHeaders, chatModel } from "@/lib/llm";
+import { checkOrgAIQuota } from "@/lib/quota";
 import {
   COL,
   getDoc,
@@ -256,7 +257,9 @@ Rules:
     const encoder = new TextEncoder();
 
     // 7. STREAMING RESPONSE - OpenAI / OpenRouter or Fallback
-    if (LLM_API_KEY) {
+    // (platform-key orgs are limited by the daily AI quota; BYOK unlimited)
+    const aiQuota = await checkOrgAIQuota((chatbot as any).organizationId).catch(() => null);
+    if (LLM_API_KEY && aiQuota?.allowed !== false) {
       const messagesPayload = [
         { role: "system", content: systemPrompt },
         ...history.slice(-8, -1).map(m => ({

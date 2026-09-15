@@ -283,8 +283,9 @@ export default function Landing() {
           <div className="flex items-center gap-6 text-[13px] text-slate-500">
             <Link href="/login" className="hover:text-slate-900">Sign in</Link>
             <a href="#features" className="hover:text-slate-900">Features</a>
-            <span className="flex items-center gap-1.5"><Smartphone className="w-3.5 h-3.5" /> WhatsApp AI</span>
-            <span className="flex items-center gap-1.5"><Bot className="w-3.5 h-3.5" /> Website AI</span>
+            <Link href="/privacy" className="hover:text-slate-900">Privacy</Link>
+            <Link href="/terms" className="hover:text-slate-900">Terms</Link>
+            <Link href="/data-deletion" className="hover:text-slate-900">Data Deletion</Link>
           </div>
           <div className="text-[12.5px] text-slate-400">© {new Date().getFullYear()} Biztriach. Built for ambitious businesses.</div>
         </div>

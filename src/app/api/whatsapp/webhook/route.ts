@@ -6,6 +6,7 @@ import { parseBusinessMessage, formatNaira } from "@/lib/businessParser";
 import { generateEmbedding, retrieveRelevantChunks } from "@/lib/rag";
 import { decryptKey } from "@/lib/apiKeys";
 import { chatCompletion, llmProvider } from "@/lib/llm";
+import { checkOrgAIQuota } from "@/lib/quota";
 import {
   COL,
   findDocs,
@@ -551,18 +552,24 @@ Rules:
 - Never say "as an AI" or "I'm an AI language model"`;
 
     // Try LLM (OpenAI or OpenRouter — unified provider layer in src/lib/llm.ts)
-    const llmReply = await chatCompletion(
-      [
-        { role: "system", content: systemPrompt },
-        { role: "user", content: message }
-      ],
-      { maxTokens: 320, temperature: 0.8 }
-    );
-    if (llmReply) {
-      // WhatsApp formatting: models often emit markdown **bold** — convert to WhatsApp *bold*
-      const waReply = llmReply.replace(/\*\*(.+?)\*\*/g, "*$1*").replace(/\n{3,}/g, "\n\n");
-      console.log(`[WhatsApp AI] Generated reply via ${llmProvider()}: ${waReply.slice(0, 100)}...`);
-      return waReply;
+    // Platform-key orgs are limited by the daily AI quota (BYOK orgs unlimited)
+    const quota = await checkOrgAIQuota(orgId);
+    if (quota.allowed) {
+      const llmReply = await chatCompletion(
+        [
+          { role: "system", content: systemPrompt },
+          { role: "user", content: message }
+        ],
+        { maxTokens: 320, temperature: 0.8 }
+      );
+      if (llmReply) {
+        // WhatsApp formatting: models often emit markdown **bold** — convert to WhatsApp *bold*
+        const waReply = llmReply.replace(/\*\*(.+?)\*\*/g, "*$1*").replace(/\n{3,}/g, "\n\n");
+        console.log(`[WhatsApp AI] Generated reply via ${llmProvider()}: ${waReply.slice(0, 100)}...`);
+        return waReply;
+      }
+    } else {
+      console.warn(`[WhatsApp AI] Org ${orgId} hit daily AI quota (${quota.used}/${quota.limit}) — using template reply`);
     }
 
     // Fallback replies - act well even without LLM
