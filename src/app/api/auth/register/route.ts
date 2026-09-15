@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getUserFromRequest } from "@/lib/auth";
+import { extractBearerToken } from "@/lib/auth";
 import { firebaseAuth } from "@/lib/firebase";
 import { COL, runTransaction, txHelpers, findUniqueBy, newId } from "@/lib/firestore";
 import { sendEmail, emailTemplates } from "@/lib/email";
@@ -14,16 +14,27 @@ const ADMIN_EMAILS = ["ogungboyeopeyemiphilip@gmail.com", "phoslabceo@gmail.com"
  */
 export async function POST(req: Request) {
   try {
-    const authUser = await getUserFromRequest(req);
-    if (!authUser || !authUser.id) {
+    // Verify the Firebase ID token WITHOUT requiring an existing Firestore
+    // profile — this route is what creates the profile. (A brand-new user has
+    // a valid token but no profile yet; getUserFromRequest would 401 them.)
+    const bearerToken = extractBearerToken(req);
+    let decoded: { uid?: string; email?: string } | null = null;
+    try {
+      decoded = bearerToken ? await firebaseAuth().verifyIdToken(bearerToken, true) : null;
+    } catch {
+      decoded = null;
+    }
+    if (!decoded?.uid) {
       return NextResponse.json(
         { error: "Missing or invalid authentication token" },
         { status: 401 }
       );
     }
+    const authUid = decoded.uid;
+    const authEmail = (decoded.email || "").toLowerCase();
 
     const { name, organizationName, businessType } = await req.json();
-    const email = (authUser.email || "").toLowerCase();
+    const email = authEmail;
 
     if (!name || !email || !organizationName) {
       return NextResponse.json({ error: "Missing required registration fields" }, { status: 400 });
@@ -63,7 +74,7 @@ export async function POST(req: Request) {
         openrouterApiKey: null,
         geminiApiKey: null,
         claudeApiKey: null,
-      }, authUser.id); // user doc id == Firebase Auth uid
+      }, authUid); // user doc id == Firebase Auth uid
 
       const chatbotId = newId();
       txHelpers.create(tx, COL.chatbots, {
@@ -126,12 +137,12 @@ export async function POST(req: Request) {
         });
       }
 
-      return { userId: authUser.id, orgId, chatbotId };
+      return { userId: authUid, orgId, chatbotId };
     });
 
     // Sync custom claims (role/status) for fast token-based checks
     try {
-      await firebaseAuth().setCustomUserClaims(authUser.id, {
+      await firebaseAuth().setCustomUserClaims(authUid, {
         role: isAdmin ? "ADMIN" : "USER",
         status: initialStatus,
       });
