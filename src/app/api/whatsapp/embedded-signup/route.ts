@@ -29,12 +29,23 @@ function appToken(): string | null {
   return `${FB_APP_ID}|${secret}`;
 }
 
-export async function GET() {
+/** The redirect URI must exactly match what is configured in Facebook Login
+ *  settings. Prefer the origin the customer is actually browsing. */
+function redirectUriFrom(req: Request): string {
+  try {
+    const url = new URL(req.url);
+    if (url.hostname.includes("vercel.app") || process.env.NEXT_PUBLIC_APP_URL === undefined) {
+      return url.origin + "/";
+    }
+  } catch {}
+  return (process.env.NEXT_PUBLIC_APP_URL || "https://biztriach.vercel.app") + "/";
+}
+
+export async function GET(req: Request) {
   const appId = FB_APP_ID;
   const hasSecret = !!process.env.META_APP_SECRET;
   const configId = process.env.NEXT_PUBLIC_ES_CONFIG_ID || null;
-  const redirectUri =
-    (process.env.NEXT_PUBLIC_APP_URL || "https://biztriach.vercel.app") + "/";
+  const redirectUri = redirectUriFrom(req);
   return NextResponse.json({
     appId,
     hasSecret,
@@ -58,8 +69,7 @@ export async function POST(req: Request) {
       { status: 503 }
     );
   }
-  const redirectUri =
-    (process.env.NEXT_PUBLIC_APP_URL || "https://biztriach.vercel.app") + "/";
+  const redirectUri = redirectUriFrom(req);
 
   try {
     const { code } = await req.json();
