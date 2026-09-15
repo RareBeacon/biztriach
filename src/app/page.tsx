@@ -3,7 +3,7 @@
 import React from "react";
 import Link from "next/link";
 import {
-  MessageCircle, Bot, Database, Globe, Wallet, Users,
+  MessageCircle, Bot, Database, Globe, Users,
   ArrowRight, Check, Menu, X, Smartphone, MessageSquare, Sparkles,
 } from "lucide-react";
 
@@ -35,10 +35,10 @@ const features = [
     desc: "Every chat becomes a record — names, needs, phone numbers. Leads land in your dashboard, ready for follow-up while they're still hot.",
   },
   {
-    icon: Wallet,
+    icon: MessageSquare,
     tone: "bg-amber-500",
-    title: "Sales & Reports",
-    desc: "Text \"Sold 3 bags of rice for 50000\" and it logs itself. Revenue, expenses and reports — updated automatically, zero data entry.",
+    title: "Live Inbox + Human Handoff",
+    desc: "Watch every conversation in real time. The AI handles the routine and hands off to you the moment a customer needs a human.",
   },
   {
     icon: Globe,
@@ -49,9 +49,9 @@ const features = [
 ];
 
 const steps = [
-  { n: "01", title: "Connect your number", desc: "Paste three credentials from Meta, or one click with Embedded Signup. Ten minutes, tops." },
+  { n: "01", title: "Connect your number", desc: "One click with Facebook login and an SMS code — your WhatsApp is live in minutes, no developer setup." },
   { n: "02", title: "Train your agent", desc: "Upload your services, prices and FAQs — or just describe your business. The AI adapts to your voice." },
-  { n: "03", title: "Watch it work", desc: "Customers get instant answers, leads flow in, sales log themselves — all visible in one console." },
+  { n: "03", title: "Watch it work", desc: "Customers get instant answers and leads flow in — every conversation visible in one console." },
 ];
 
 const chatScript = [
