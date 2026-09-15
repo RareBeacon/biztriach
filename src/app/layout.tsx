@@ -40,7 +40,7 @@ export default function RootLayout({
         />
       </head>
       <body className="antialiased font-inter bg-white text-slate-900 selection:bg-violet-500 selection:text-white">
-        {children}
+        <AuthProvider>{children}</AuthProvider>
       </body>
     </html>
   );

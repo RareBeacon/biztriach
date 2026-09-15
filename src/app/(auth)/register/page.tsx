@@ -37,10 +37,15 @@ export default function RegisterPage() {
       const cred = await createUserWithEmailAndPassword(auth, email, password);
 
       // 2. Create the Biztriach profile + org defaults server-side.
-      //    The fetch patch attaches the fresh ID token automatically.
+      //    Attach the fresh ID token explicitly — do not rely on the global
+      //    fetch patch for this critical call.
+      const idToken = await cred.user.getIdToken();
       const response = await fetch("/api/auth/register", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${idToken}`,
+        },
         body: JSON.stringify({ name, email, organizationName }),
       });
 
