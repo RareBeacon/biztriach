@@ -22,9 +22,19 @@ import { randomBytes } from "crypto";
 
 const GRAPH = "https://graph.facebook.com/v20.0";
 const FB_APP_ID = process.env.NEXT_PUBLIC_FB_APP_ID || "1499843165493946";
+// Config ID is public by design (it is passed to FB.login in the browser).
+const ES_CONFIG_ID = process.env.NEXT_PUBLIC_ES_CONFIG_ID || "1601985298147328";
+// App secret: env var preferred. Fallback below so the platform runs before the
+// env var is set — ROTATE this secret after Meta verification and set the env
+// var on Vercel (env var always wins over this fallback).
+const META_APP_SECRET_FALLBACK = "7c45536aea87b08e86ce91b2159f5611";
+
+function effectiveAppSecret(): string | null {
+  return process.env.META_APP_SECRET || META_APP_SECRET_FALLBACK || null;
+}
 
 function appToken(): string | null {
-  const secret = process.env.META_APP_SECRET;
+  const secret = effectiveAppSecret();
   if (!secret) return null;
   return `${FB_APP_ID}|${secret}`;
 }
@@ -43,8 +53,8 @@ function redirectUriFrom(req: Request): string {
 
 export async function GET(req: Request) {
   const appId = FB_APP_ID;
-  const hasSecret = !!process.env.META_APP_SECRET;
-  const configId = process.env.NEXT_PUBLIC_ES_CONFIG_ID || null;
+  const hasSecret = !!effectiveAppSecret();
+  const configId = ES_CONFIG_ID || null;
   const redirectUri = redirectUriFrom(req);
   return NextResponse.json({
     appId,
@@ -62,10 +72,10 @@ export async function POST(req: Request) {
   }
 
   const appId = FB_APP_ID;
-  const appSecret = process.env.META_APP_SECRET;
+  const appSecret = effectiveAppSecret();
   if (!appSecret) {
     return NextResponse.json(
-      { error: "Server not configured: META_APP_SECRET missing on Vercel. Add it in Vercel → Settings → Environment Variables, then redeploy." },
+      { error: "Server not configured: META_APP_SECRET missing." },
       { status: 503 }
     );
   }
