@@ -80,16 +80,14 @@ export default function RegisterPage() {
 
         {/* Logo Header */}
         <div className="text-center mb-8 flex flex-col items-center">
-          <Link href="/" className="flex items-center gap-2 mb-4">
-            <span className="bg-blue-600 rounded-lg p-1.5 flex items-center justify-center shrink-0">
-              <Bot className="w-5 h-5 text-white" />
-            </span>
+          <Link href="/" className="flex items-center gap-2.5 mb-4">
+            <img src="/logo.png" alt="Biztriach" className="w-10 h-10 rounded-xl border border-slate-200 object-cover shadow-sm" />
             <span className="font-outfit font-extrabold text-lg tracking-tight text-slate-800">
-              SupportIQ <span className="text-blue-600 font-bold">AI</span>
+              Biztriach
             </span>
           </Link>
-          <h2 className="text-xl font-bold font-outfit text-slate-800">Create your SaaS account</h2>
-          <p className="text-xs text-slate-500 mt-1">Get custom support automation immediately</p>
+          <h2 className="text-xl font-bold font-outfit text-slate-800">Create your account</h2>
+          <p className="text-xs text-slate-500 mt-1">Launch your AI agent in minutes</p>
         </div>
 
         {/* Banners */}

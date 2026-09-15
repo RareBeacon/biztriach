@@ -38,7 +38,7 @@ export default function ChatbotWindow({ chatbot }: { chatbot: Chatbot }) {
   try {
     suggestionsList = JSON.parse(chatbot.suggestions);
   } catch (e) {
-    suggestionsList = ["What is SupportIQ AI?", "How do I upload documents?"];
+    suggestionsList = ["What is Biztriach?", "How do I upload documents?"];
   }
 
   // Auto scroll to bottom
@@ -296,7 +296,7 @@ export default function ChatbotWindow({ chatbot }: { chatbot: Chatbot }) {
 
       {/* Branding footer */}
       <div className="py-1.5 bg-white border-t border-slate-100 text-center text-[10px] text-slate-400 flex items-center justify-center gap-1 shrink-0">
-        Powered by <strong className="font-semibold text-slate-500">SupportIQ AI</strong>
+        Powered by <strong className="font-semibold text-slate-500">Biztriach</strong>
       </div>
     </div>
   );

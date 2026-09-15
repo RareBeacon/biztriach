@@ -108,16 +108,14 @@ function LoginForm() {
     <div className="w-full max-w-md bg-white border border-slate-200 shadow-xl rounded-2xl p-8">
       {/* Logo Header */}
       <div className="text-center mb-8 flex flex-col items-center">
-        <Link href="/" className="flex items-center gap-2 mb-4">
-          <span className="bg-violet-600 rounded-lg p-1.5 flex items-center justify-center shrink-0">
-            <Bot className="w-5 h-5 text-white" />
-          </span>
+        <Link href="/" className="flex items-center gap-2.5 mb-4">
+          <img src="/logo.png" alt="Biztriach" className="w-10 h-10 rounded-xl border border-slate-200 object-cover shadow-sm" />
           <span className="font-outfit font-extrabold text-lg tracking-tight text-slate-800">
-            SupportIQ <span className="text-blue-600 font-bold">AI</span>
+            Biztriach
           </span>
         </Link>
-        <h2 className="text-xl font-bold font-outfit text-slate-800">Sign in to your account</h2>
-        <p className="text-xs text-slate-500 mt-1">Manage your customer support automation</p>
+        <h2 className="text-xl font-bold font-outfit text-slate-800">Sign in to your console</h2>
+        <p className="text-xs text-slate-500 mt-1">Your AI agents are waiting</p>
       </div>
 
       {/* Banners */}
@@ -190,7 +188,7 @@ function LoginForm() {
 
       {/* Footer Links */}
       <div className="mt-8 text-center border-t border-slate-100 pt-6 text-xs text-slate-500">
-        New to SupportIQ?{" "}
+        New to Biztriach?{" "}
         <Link href="/register" className="text-blue-600 font-semibold hover:underline">
           Create an account
         </Link>
@@ -204,10 +202,8 @@ export default function LoginPage() {
     <div className="min-h-screen bg-[#f6f7f8] lg:grid lg:grid-cols-2 flex items-center justify-center py-12 px-6">
       {/* Brand panel (desktop) */}
       <div className="hidden lg:flex flex-col justify-between bg-[#0b0d13] p-12 h-screen sticky top-0">
-        <Link href="/" className="flex items-center gap-2.5">
-          <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-violet-500 to-indigo-600 flex items-center justify-center">
-            <span className="text-white font-outfit font-black text-[16px] leading-none">B</span>
-          </div>
+        <Link href="/" className="flex items-center gap-3">
+          <img src="/logo.png" alt="Biztriach" className="w-10 h-10 rounded-xl bg-white object-cover shadow-lg" />
           <span className="font-outfit font-bold text-white text-[17px]">Biztriach</span>
         </Link>
         <div>
@@ -215,7 +211,7 @@ export default function LoginPage() {
             One AI employee.<br />Your entire business.
           </h2>
           <p className="text-slate-400 text-[14.5px] mt-4 max-w-md leading-relaxed">
-            WhatsApp agents that talk like you, live chat on your website, sales &amp; inventory that update themselves — all from one console.
+            AI agents on WhatsApp and your website that talk like you — answering customers, capturing leads, logging sales. All from one console.
           </p>
           <div className="flex items-center gap-6 mt-8">
             <div><div className="text-[22px] font-bold text-white">24/7</div><div className="text-[11.5px] text-slate-500">AI availability</div></div>

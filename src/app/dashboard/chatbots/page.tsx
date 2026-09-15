@@ -29,7 +29,7 @@ export default function ChatbotSettingsPage() {
       try {
         setSuggestions(JSON.parse(activeChatbot.suggestions));
       } catch (e) {
-        setSuggestions(["What is SupportIQ AI?", "How do I upload documents?"]);
+        setSuggestions(["What is Biztriach?", "How do I upload documents?"]);
       }
     }
   }, [activeChatbot]);

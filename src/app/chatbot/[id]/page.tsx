@@ -15,12 +15,12 @@ export async function generateMetadata({ params }: PageProps) {
 
   if (!chatbot) {
     return {
-      title: "Chatbot Not Found - SupportIQ AI",
+      title: "Chatbot Not Found - Biztriach",
     };
   }
 
   return {
-    title: `${chatbot.name} - SupportIQ AI`,
+    title: `${chatbot.name} - Biztriach`,
   };
 }
 

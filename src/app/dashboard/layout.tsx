@@ -95,9 +95,7 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
       {/* Brand */}
       <div className="h-16 px-5 flex items-center gap-3 border-b border-white/[0.06] shrink-0">
         <Link href="/dashboard/overview" onClick={onNavigate} className="flex items-center gap-2.5">
-          <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-violet-500 to-indigo-600 flex items-center justify-center shadow-lg shadow-violet-900/40">
-            <span className="text-white font-outfit font-black text-[15px] leading-none">B</span>
-          </div>
+          <img src="/logo.png" alt="Biztriach" className="w-9 h-9 rounded-xl bg-white object-cover shadow-lg" />
           <div>
             <div className="font-outfit font-bold text-[15px] leading-none text-white">Biztriach</div>
             <div className="text-[9.5px] text-slate-500 tracking-[0.18em] uppercase font-semibold mt-1">Console</div>

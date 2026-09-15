@@ -3,22 +3,22 @@ import "./globals.css";
 import { AuthProvider } from "@/components/AuthProvider";
 
 export const metadata: Metadata = {
-  title: "Biztriach - AI Business Platform for SMEs",
+  title: "Biztriach — AI Agents & Automations for Your Business",
   description:
-    "One AI employee for your entire business. Customer support, sales, inventory, WhatsApp, and financial reports — all automated with AI. Built for supermarkets, restaurants, clinics, real estate & more.",
+    "Deploy AI agents on WhatsApp and your website that sound like you. Trained on your business, they answer customers in seconds, capture leads, log sales and report everything — automatically.",
   keywords: [
     "Biztriach",
-    "AI business platform",
+    "AI agents",
+    "AI automations",
+    "WhatsApp AI agent",
+    "website chat AI",
     "AI customer support",
-    "SME business automation",
-    "WhatsApp business AI",
-    "inventory management AI",
-    "AI employee",
-    "business management platform Nigeria"
+    "lead capture AI",
+    "business automation Nigeria",
   ],
   openGraph: {
-    title: "Biztriach - One AI Employee for Your Entire Business",
-    description: "Train once, deploy everywhere. Support, sales, inventory & growth — automated.",
+    title: "Biztriach — AI Agents That Sell, Support & Never Sleep",
+    description: "Train once, deploy everywhere. AI agents on WhatsApp and your website — talking in your voice, capturing leads 24/7.",
     type: "website",
     locale: "en_NG",
   },
