@@ -6,9 +6,8 @@ import { usePathname } from "next/navigation";
 import { DashboardProvider, useDashboard } from "@/context/DashboardContext";
 import {
   Bot, LayoutDashboard, Settings, BarChart3, Database, MessageSquare,
-  LogOut, Plus, Package, ShoppingBag,
-  Receipt, Wallet, MessageCircle, Globe,
-  Smartphone, Key, Shield, Building2,
+  LogOut, Plus, MessageCircle, Globe,
+  Smartphone, Key, Shield,
   ChevronDown, Check, Menu, X, ExternalLink,
 } from "lucide-react";
 
@@ -31,7 +30,6 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
       items: [
         { label: "Overview", icon: LayoutDashboard, href: "/dashboard/overview" },
         { label: "Analytics", icon: BarChart3, href: "/dashboard/analytics" },
-        { label: "Reports", icon: Wallet, href: "/dashboard/reports" },
       ]
     },
     {
@@ -48,10 +46,6 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
       title: "Operations",
       items: [
         { label: "WhatsApp", icon: MessageCircle, href: "/dashboard/whatsapp", badge: "Live" },
-        { label: "Inventory", icon: Package, href: "/dashboard/inventory" },
-        { label: "Sales", icon: ShoppingBag, href: "/dashboard/sales" },
-        { label: "Expenses", icon: Receipt, href: "/dashboard/expenses" },
-        { label: "Customers", icon: Building2, href: "/dashboard/customers" },
       ]
     },
     {

@@ -3,48 +3,47 @@
 import React, { useEffect, useState } from "react";
 import { useDashboard } from "@/context/DashboardContext";
 import {
-  TrendingUp, Wallet, Package, AlertTriangle, ArrowUpRight, Bot,
-  MessageCircle, Database, ShoppingBag, Receipt, Users, ChevronRight,
+  TrendingUp, MessageCircle, Bot, Clock, ArrowUpRight,
+  Database, Users, ChevronRight, Zap, Star, CheckCircle2, XCircle,
 } from "lucide-react";
 import Link from "next/link";
 
-interface FinancialSummary {
-  todayRevenue: number;
-  todayExpenses: number;
-  todayProfit: number;
-  monthRevenue: number;
-  monthExpenses: number;
-  monthProfit: number;
-  inventoryValue: number;
-  lowStockCount: number;
-  totalProducts: number;
-  totalCustomers: number;
-  totalSalesToday: number;
+interface AgentMetrics {
+  totalConversations: number;
+  totalMessages: number;
+  averageRating: number | null;
+  avgResponseTimeSec: number;
 }
-
-const fmt = (n: number) => `₦${(n || 0).toLocaleString()}`;
 
 export default function BiztriachOverview() {
   const { activeChatbot, user } = useDashboard();
-  const [financials, setFinancials] = useState<FinancialSummary | null>(null);
   const [loading, setLoading] = useState(true);
-  const [recentSales, setRecentSales] = useState<any[]>([]);
-  const [lowStock, setLowStock] = useState<any[]>([]);
+  const [metrics, setMetrics] = useState<AgentMetrics | null>(null);
+  const [convs, setConvs] = useState<any[]>([]);
+  const [waConnected, setWaConnected] = useState<boolean | null>(null);
 
   useEffect(() => {
     const loadData = async () => {
       setLoading(true);
       try {
-        const finRes = await fetch("/api/reports/financial?period=today");
-        if (finRes.ok) {
-          const data = await finRes.json();
-          setFinancials(data.summary);
-          setLowStock(data.lowStock || []);
+        const waRes = await fetch("/api/whatsapp/account");
+        if (waRes.ok) {
+          const a = await waRes.json();
+          setWaConnected(Boolean(a?.account?.isConnected));
+        } else if (waRes.status === 404) {
+          setWaConnected(false);
         }
-        const salesRes = await fetch("/api/sales?limit=5");
-        if (salesRes.ok) {
-          const sData = await salesRes.json();
-          setRecentSales(Array.isArray(sData) ? sData : sData.sales || []);
+        if (activeChatbot?.id) {
+          const anRes = await fetch(`/api/analytics?chatbotId=${activeChatbot.id}`);
+          if (anRes.ok) {
+            const d = await anRes.json();
+            setMetrics(d.summary || null);
+          }
+          const convRes = await fetch(`/api/conversations?chatbotId=${activeChatbot.id}`);
+          if (convRes.ok) {
+            const list = await convRes.json();
+            setConvs(Array.isArray(list) ? list.slice(0, 5) : []);
+          }
         }
       } catch (e) {
         console.error("Overview load error", e);
@@ -59,18 +58,24 @@ export default function BiztriachOverview() {
   const greeting = hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening";
 
   const stats = [
-    { label: "Today's Revenue", value: financials ? fmt(financials.todayRevenue) : "—", sub: `${financials?.totalSalesToday || 0} sales today`, icon: Wallet, tone: "text-emerald-600 bg-emerald-50 border-emerald-100" },
-    { label: "Today's Profit", value: financials ? fmt(financials.todayProfit) : "—", sub: `Expenses ${financials ? fmt(financials.todayExpenses) : "—"}`, icon: TrendingUp, tone: "text-violet-600 bg-violet-50 border-violet-100" },
-    { label: "Inventory Value", value: financials ? fmt(financials.inventoryValue) : "—", sub: `${financials?.totalProducts || 0} products tracked`, icon: Package, tone: "text-sky-600 bg-sky-50 border-sky-100" },
-    { label: "Low Stock", value: financials ? `${financials.lowStockCount} items` : "—", sub: financials?.lowStockCount ? "Needs restock soon" : "All stocked up", icon: AlertTriangle, tone: financials?.lowStockCount ? "text-amber-600 bg-amber-50 border-amber-100" : "text-slate-500 bg-slate-50 border-slate-200" },
+    { label: "Conversations", value: metrics ? metrics.totalConversations.toLocaleString() : "—", sub: "Total customer chats handled", icon: MessageCircle, tone: "text-violet-600 bg-violet-50 border-violet-100" },
+    { label: "Messages", value: metrics ? metrics.totalMessages.toLocaleString() : "—", sub: "AI + customer messages exchanged", icon: Bot, tone: "text-indigo-600 bg-indigo-50 border-indigo-100" },
+    { label: "Avg Response", value: metrics ? `${metrics.avgResponseTimeSec || 12}s` : "—", sub: "How fast your AI replies", icon: Clock, tone: "text-cyan-600 bg-cyan-50 border-cyan-100" },
+    { label: "WhatsApp", value: waConnected === null ? "…" : waConnected ? "Connected" : "Not connected", sub: waConnected ? "AI answering on your number" : "Connect it in 3 clicks", icon: waConnected ? CheckCircle2 : XCircle, tone: waConnected ? "text-emerald-600 bg-emerald-50 border-emerald-100" : "text-slate-500 bg-slate-50 border-slate-200" },
   ];
 
   const quickActions = [
     { label: "WhatsApp Agent", desc: "Your AI replies to customers on WhatsApp, 24/7", href: "/dashboard/whatsapp", icon: MessageCircle, tone: "bg-emerald-500" },
     { label: "Train Knowledge", desc: "Upload documents so the AI speaks your business", href: "/dashboard/documents", icon: Database, tone: "bg-violet-500" },
-    { label: "Record a Sale", desc: "Every sale updates stock, profit & reports", href: "/dashboard/sales", icon: ShoppingBag, tone: "bg-sky-500" },
+    { label: "Customize Agent", desc: "Tune your agent's personality and instructions", href: "/dashboard/chatbots", icon: Zap, tone: "bg-sky-500" },
     { label: "Live Inbox", desc: "See every customer conversation as it happens", href: "/dashboard/conversations", icon: Bot, tone: "bg-indigo-500" },
   ];
+
+  const lastMsg = (c: any) => {
+    const msgs = c?.messages || [];
+    const m = msgs[msgs.length - 1];
+    return m?.content || c?.lastMessage || "";
+  };
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -85,8 +90,8 @@ export default function BiztriachOverview() {
             Here's what's happening across your business today.
           </p>
         </div>
-        <Link href="/dashboard/reports" className="btn-primary">
-          View Reports <ArrowUpRight className="w-4 h-4" />
+        <Link href="/dashboard/analytics" className="btn-primary">
+          View Analytics <ArrowUpRight className="w-4 h-4" />
         </Link>
       </div>
 
@@ -129,92 +134,79 @@ export default function BiztriachOverview() {
 
       {/* Activity */}
       <div className="grid lg:grid-cols-12 gap-5">
-        {/* Recent sales */}
+        {/* Recent conversations */}
         <div className="lg:col-span-7 console-card overflow-hidden">
           <div className="px-5 py-4 border-b border-slate-200 flex items-center justify-between">
             <div className="text-[13.5px] font-semibold text-slate-800 flex items-center gap-2">
-              <ShoppingBag className="w-4 h-4 text-slate-400" /> Recent Sales
+              <MessageCircle className="w-4 h-4 text-slate-400" /> Recent Conversations
             </div>
-            <Link href="/dashboard/sales" className="text-[12px] font-semibold text-violet-600 hover:text-violet-700">View all →</Link>
+            <Link href="/dashboard/conversations" className="text-[12px] font-semibold text-violet-600 hover:text-violet-700">View all →</Link>
           </div>
           {loading ? (
             <div className="p-10 text-center text-[13px] text-slate-400">Loading…</div>
-          ) : recentSales.length === 0 ? (
+          ) : convs.length === 0 ? (
             <div className="p-10 text-center">
-              <div className="text-[28px] mb-2">🧾</div>
-              <p className="text-[13.5px] font-semibold text-slate-700">No sales yet</p>
-              <p className="text-[12.5px] text-slate-500 mt-1">Record one manually or just WhatsApp: <span className="font-mono text-[11.5px] bg-slate-100 px-1.5 py-0.5 rounded">Sold 3 bags rice for 50000</span></p>
+              <div className="text-[28px] mb-2">💬</div>
+              <p className="text-[13.5px] font-semibold text-slate-700">No conversations yet</p>
+              <p className="text-[12.5px] text-slate-500 mt-1">Connect WhatsApp and message your business number — chats appear here with AI auto-replies.</p>
             </div>
           ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead><tr><th className="console-th">Sale</th><th className="console-th">Customer</th><th className="console-th">Items</th><th className="console-th text-right">Amount</th></tr></thead>
-                <tbody>
-                  {recentSales.map((s: any) => (
-                    <tr key={s.id} className="hover:bg-slate-50/70">
-                      <td className="console-td font-mono text-[12px] text-slate-500">{s.saleNumber}</td>
-                      <td className="console-td font-medium text-slate-700">{s.customer?.name || "Walk-in"}</td>
-                      <td className="console-td text-slate-500">{s.items?.map((it: any) => `${it.quantity}× ${it.productName}`).join(", ").slice(0, 40)}</td>
-                      <td className="console-td text-right font-bold text-slate-900">{fmt(s.totalAmount)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+            <div className="divide-y divide-slate-100">
+              {convs.map((c: any) => (
+                <Link key={c.id} href="/dashboard/conversations" className="px-5 py-3.5 flex items-start gap-3 hover:bg-slate-50/70">
+                  <div className="w-8 h-8 rounded-full bg-gradient-to-br from-violet-500 to-indigo-500 flex items-center justify-center text-white text-[11px] font-bold shrink-0">
+                    {(c.customerName || c.customerPhone || "?").toString().slice(0, 2).toUpperCase()}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-[13px] font-semibold text-slate-700 truncate">{c.customerName || c.customerPhone || "Customer"}</span>
+                      <span className="text-[11px] text-slate-400 shrink-0">{c.channel || "web"}</span>
+                    </div>
+                    <p className="text-[12.5px] text-slate-500 truncate mt-0.5">{lastMsg(c) || "…"}</p>
+                  </div>
+                </Link>
+              ))}
             </div>
           )}
         </div>
 
-        {/* Low stock + channels */}
+        {/* Agent snapshot */}
         <div className="lg:col-span-5 space-y-5">
-          <div className="console-card overflow-hidden">
-            <div className="px-5 py-4 border-b border-slate-200 flex items-center justify-between">
-              <div className="text-[13.5px] font-semibold text-slate-800 flex items-center gap-2">
-                <AlertTriangle className="w-4 h-4 text-amber-500" /> Low Stock
-              </div>
-              <Link href="/dashboard/inventory" className="text-[12px] font-semibold text-violet-600">Inventory →</Link>
-            </div>
-            {lowStock.length === 0 ? (
-              <div className="p-8 text-center">
-                <div className="text-[28px] mb-2">📦</div>
-                <p className="text-[13px] text-slate-500">Everything is well stocked{financials?.totalProducts ? ` — ${financials.totalProducts} products` : ""}.</p>
-              </div>
-            ) : (
-              <div className="divide-y divide-slate-100">
-                {lowStock.slice(0, 5).map((p: any) => (
-                  <div key={p.id} className="px-5 py-3 flex items-center justify-between">
-                    <div>
-                      <div className="text-[13px] font-medium text-slate-700">{p.name}</div>
-                      <div className="text-[11.5px] text-slate-400">Restock at {p.restockLevel || "—"}</div>
-                    </div>
-                    <span className="pill-amber">{p.quantity || 0} left</span>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-
           <div className="console-card p-5">
             <div className="text-[13.5px] font-semibold text-slate-800 flex items-center gap-2 mb-4">
-              <Users className="w-4 h-4 text-slate-400" /> Snapshot
+              <TrendingUp className="w-4 h-4 text-slate-400" /> Agent Snapshot
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div className="rounded-lg bg-slate-50 border border-slate-100 p-3.5">
-                <div className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Customers</div>
-                <div className="font-outfit text-[20px] font-bold text-slate-900 mt-0.5">{financials?.totalCustomers ?? "—"}</div>
+                <div className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Conversations</div>
+                <div className="font-outfit text-[20px] font-bold text-slate-900 mt-0.5">{metrics?.totalConversations ?? "—"}</div>
               </div>
               <div className="rounded-lg bg-slate-50 border border-slate-100 p-3.5">
-                <div className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Month Profit</div>
-                <div className="font-outfit text-[20px] font-bold text-slate-900 mt-0.5">{financials ? fmt(financials.monthProfit) : "—"}</div>
+                <div className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Messages</div>
+                <div className="font-outfit text-[20px] font-bold text-slate-900 mt-0.5">{metrics?.totalMessages ?? "—"}</div>
               </div>
               <div className="rounded-lg bg-slate-50 border border-slate-100 p-3.5">
-                <div className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Month Revenue</div>
-                <div className="font-outfit text-[20px] font-bold text-slate-900 mt-0.5">{financials ? fmt(financials.monthRevenue) : "—"}</div>
+                <div className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Avg Response</div>
+                <div className="font-outfit text-[20px] font-bold text-slate-900 mt-0.5">{metrics ? `${metrics.avgResponseTimeSec || 12}s` : "—"}</div>
               </div>
               <div className="rounded-lg bg-slate-50 border border-slate-100 p-3.5">
-                <div className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Month Expenses</div>
-                <div className="font-outfit text-[20px] font-bold text-slate-900 mt-0.5">{financials ? fmt(financials.monthExpenses) : "—"}</div>
+                <div className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Satisfaction</div>
+                <div className="font-outfit text-[20px] font-bold text-slate-900 mt-0.5 flex items-center gap-1">
+                  {metrics?.averageRating ? <><Star className="w-3.5 h-3.5 text-amber-400" /> {metrics.averageRating.toFixed(1)}</> : "—"}
+                </div>
               </div>
             </div>
+          </div>
+
+          <div className="console-card p-5">
+            <div className="text-[13.5px] font-semibold text-slate-800 flex items-center gap-2 mb-3">
+              <Users className="w-4 h-4 text-slate-400" /> Getting the most out of your agent
+            </div>
+            <ul className="space-y-2.5 text-[12.5px] text-slate-600">
+              <li className="flex gap-2"><CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0" /> Upload price lists &amp; FAQs to Knowledge Base</li>
+              <li className="flex gap-2"><CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0" /> Connect WhatsApp so customers reach the AI anywhere</li>
+              <li className="flex gap-2"><CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0" /> Install the website widget for instant chat</li>
+            </ul>
           </div>
         </div>
       </div>
