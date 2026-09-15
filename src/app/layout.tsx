@@ -5,7 +5,7 @@ import { AuthProvider } from "@/components/AuthProvider";
 export const metadata: Metadata = {
   title: "Biztriach — AI Agents & Automations for Your Business",
   description:
-    "Deploy AI agents on WhatsApp and your website that sound like you. Trained on your business, they answer customers in seconds, capture leads, log sales and report everything — automatically.",
+    "Deploy AI agents on WhatsApp and your website that sound like you. Trained on your business, they answer customers in seconds, capture leads and never miss a customer — automatically.",
   keywords: [
     "Biztriach",
     "AI agents",
