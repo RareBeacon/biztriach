@@ -44,7 +44,7 @@ export default function InventoryPage() {
           <h1 className="font-outfit text-[26px] font-bold">Inventory Management</h1>
           <p className="text-[13px] text-slate-500 mt-1">Track products, auto-updates via WhatsApp: “Sold 5 bags rice for ₦85k” → inventory reduces automatically.</p>
         </div>
-        <button onClick={() => setShowAdd(true)} className="inline-flex items-center gap-2 h-10 px-5 rounded-full bg-[#0a0a16] text-white text-[13px] font-medium hover:bg-black"><Plus className="w-4 h-4" /> Add Product</button>
+        <button onClick={() => setShowAdd(true)} className="inline-flex items-center gap-2 h-10 px-5 rounded-full bg-violet-600 text-white text-[13px] font-medium hover:bg-violet-700"><Plus className="w-4 h-4" /> Add Product</button>
       </div>
 
       <div className="grid md:grid-cols-4 gap-4">
@@ -104,7 +104,7 @@ export default function InventoryPage() {
               <input placeholder="Quantity" type="number" value={form.quantity} onChange={(e) => setForm({ ...form, quantity: e.target.value })} className="h-11 px-4 rounded-[12px] border text-[13px]" />
               <input placeholder="SKU (optional)" value={form.sku} onChange={(e) => setForm({ ...form, sku: e.target.value })} className="h-11 px-4 rounded-[12px] border text-[13px]" />
             </div>
-            <div className="flex gap-3 pt-2"><button type="button" onClick={() => setShowAdd(false)} className="flex-1 h-11 rounded-full border text-[13px] font-medium">Cancel</button><button type="submit" className="flex-1 h-11 rounded-full bg-[#0a0a16] text-white text-[13px] font-semibold">Create Product</button></div>
+            <div className="flex gap-3 pt-2"><button type="button" onClick={() => setShowAdd(false)} className="flex-1 h-11 rounded-full border text-[13px] font-medium">Cancel</button><button type="submit" className="flex-1 h-11 rounded-full bg-violet-600 text-white text-[13px] font-semibold">Create Product</button></div>
           </form>
         </div>
       )}

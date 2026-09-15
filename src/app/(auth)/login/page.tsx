@@ -109,7 +109,7 @@ function LoginForm() {
       {/* Logo Header */}
       <div className="text-center mb-8 flex flex-col items-center">
         <Link href="/" className="flex items-center gap-2 mb-4">
-          <span className="bg-blue-600 rounded-lg p-1.5 flex items-center justify-center shrink-0">
+          <span className="bg-violet-600 rounded-lg p-1.5 flex items-center justify-center shrink-0">
             <Bot className="w-5 h-5 text-white" />
           </span>
           <span className="font-outfit font-extrabold text-lg tracking-tight text-slate-800">
@@ -147,7 +147,7 @@ function LoginForm() {
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               placeholder="you@company.com"
-              className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-10 pr-4 py-3 text-sm focus:outline-none focus:ring-1 focus:ring-blue-600 focus:bg-white transition"
+              className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-10 pr-4 py-3 text-sm focus:outline-none focus:ring-1 focus:ring-violet-600 focus:bg-white transition"
               disabled={isLoading}
             />
           </div>
@@ -172,7 +172,7 @@ function LoginForm() {
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               placeholder="••••••••"
-              className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-10 pr-4 py-3 text-sm focus:outline-none focus:ring-1 focus:ring-blue-600 focus:bg-white transition"
+              className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-10 pr-4 py-3 text-sm focus:outline-none focus:ring-1 focus:ring-violet-600 focus:bg-white transition"
               disabled={isLoading}
             />
           </div>
@@ -181,7 +181,7 @@ function LoginForm() {
         <button
           type="submit"
           disabled={isLoading}
-          className="w-full bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white font-semibold py-3.5 rounded-xl text-sm transition flex items-center justify-center gap-1.5 mt-6 shadow"
+          className="w-full bg-violet-600 hover:bg-violet-700 disabled:opacity-50 text-white font-semibold py-3.5 rounded-xl text-sm transition flex items-center justify-center gap-1.5 mt-6 shadow"
         >
           {isLoading ? "Signing In..." : "Sign In"}
           <ArrowRight className="w-4 h-4" />
@@ -201,15 +201,44 @@ function LoginForm() {
 
 export default function LoginPage() {
   return (
-    <div className="min-h-screen bg-slate-50 flex items-center justify-center py-12 px-6 grid-bg">
-      <Suspense fallback={
-        <div className="w-full max-w-md bg-white border border-slate-200 shadow-xl rounded-2xl p-8 flex flex-col items-center justify-center gap-3">
-          <div className="w-10 h-10 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
-          <p className="text-xs text-slate-500 font-medium">Loading session parameters...</p>
+    <div className="min-h-screen bg-[#f6f7f8] lg:grid lg:grid-cols-2 flex items-center justify-center py-12 px-6">
+      {/* Brand panel (desktop) */}
+      <div className="hidden lg:flex flex-col justify-between bg-[#0b0d13] p-12 h-screen sticky top-0">
+        <Link href="/" className="flex items-center gap-2.5">
+          <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-violet-500 to-indigo-600 flex items-center justify-center">
+            <span className="text-white font-outfit font-black text-[16px] leading-none">B</span>
+          </div>
+          <span className="font-outfit font-bold text-white text-[17px]">Biztriach</span>
+        </Link>
+        <div>
+          <h2 className="font-outfit text-[34px] font-bold text-white leading-tight tracking-tight">
+            One AI employee.<br />Your entire business.
+          </h2>
+          <p className="text-slate-400 text-[14.5px] mt-4 max-w-md leading-relaxed">
+            WhatsApp agents that talk like you, live chat on your website, sales &amp; inventory that update themselves — all from one console.
+          </p>
+          <div className="flex items-center gap-6 mt-8">
+            <div><div className="text-[22px] font-bold text-white">24/7</div><div className="text-[11.5px] text-slate-500">AI availability</div></div>
+            <div className="w-px h-8 bg-white/10" />
+            <div><div className="text-[22px] font-bold text-white">&lt; 5s</div><div className="text-[11.5px] text-slate-500">Reply time</div></div>
+            <div className="w-px h-8 bg-white/10" />
+            <div><div className="text-[22px] font-bold text-white">∞</div><div className="text-[11.5px] text-slate-500">Patience</div></div>
+          </div>
         </div>
-      }>
-        <LoginForm />
-      </Suspense>
+        <div className="text-[12px] text-slate-600">© {new Date().getFullYear()} Biztriach — Built for ambitious businesses.</div>
+      </div>
+
+      {/* Form side */}
+      <div className="w-full flex items-center justify-center">
+        <Suspense fallback={
+          <div className="w-full max-w-md bg-white border border-slate-200 shadow-xl rounded-2xl p-8 flex flex-col items-center justify-center gap-3">
+            <div className="w-10 h-10 border-4 border-violet-600 border-t-transparent rounded-full animate-spin"></div>
+            <p className="text-xs text-slate-500 font-medium">Loading session parameters...</p>
+          </div>
+        }>
+          <LoginForm />
+        </Suspense>
+      </div>
     </div>
   );
 }

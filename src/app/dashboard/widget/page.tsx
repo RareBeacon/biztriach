@@ -21,7 +21,7 @@ export default function WidgetPage(){
           <p className="text-[12px] text-slate-500 mt-2">Paste this single line before closing &lt;/body&gt; tag. Floating chat bubble appears instantly.</p>
           {activeChatbot ? (
             <div className="mt-4">
-              <div className="rounded-[12px] bg-[#0a0a16] text-white p-4 font-mono text-[12px] overflow-x-auto relative"><code>{script}</code><button onClick={copy} className="absolute top-2 right-2 w-8 h-8 rounded-full bg-white text-black flex items-center justify-center">{copied? <Check className="w-4 h-4"/> : <Copy className="w-4 h-4"/>}</button></div>
+              <div className="rounded-[12px] bg-violet-600 text-white p-4 font-mono text-[12px] overflow-x-auto relative"><code>{script}</code><button onClick={copy} className="absolute top-2 right-2 w-8 h-8 rounded-full bg-white text-black flex items-center justify-center">{copied? <Check className="w-4 h-4"/> : <Copy className="w-4 h-4"/>}</button></div>
               <div className="mt-4 flex items-center gap-3"><div className="w-3 h-3 rounded-full" style={{backgroundColor:activeChatbot.themeColor}}/><span className="text-[12px]">Theme: {activeChatbot.themeColor}</span><span className="text-[12px] text-slate-500">Agent: {activeChatbot.name}</span></div>
             </div>
           ) : <div className="mt-4 p-8 text-center text-[13px] text-slate-400 border-2 border-dashed rounded-[12px]">Create an AI agent first to get widget script.</div>}
@@ -29,7 +29,7 @@ export default function WidgetPage(){
         </div>
 
         <div className="lg:col-span-5 space-y-4">
-          <div className="rounded-[20px] bg-[#0a0a16] text-white p-6"><h4 className="font-semibold text-[14px] flex items-center gap-2"><Palette className="w-4 h-4 text-violet-400"/> Brand Customization</h4><div className="mt-4 space-y-3 text-[12px]">
+          <div className="rounded-[20px] bg-violet-600 text-white p-6"><h4 className="font-semibold text-[14px] flex items-center gap-2"><Palette className="w-4 h-4 text-violet-400"/> Brand Customization</h4><div className="mt-4 space-y-3 text-[12px]">
             <div className="flex justify-between"><span className="text-white/60">Brand Color</span><span className="font-medium flex items-center gap-2"><span className="w-3 h-3 rounded-full" style={{backgroundColor:activeChatbot?.themeColor || "#7c3aed"}}/>{activeChatbot?.themeColor || "#7c3aed"}</span></div>
             <div className="flex justify-between"><span className="text-white/60">Greeting</span><span className="font-medium max-w-[180px] truncate">{activeChatbot?.greetingMessage?.slice(0,40) || "Hello! How can I help?"}</span></div>
             <div className="flex justify-between"><span className="text-white/60">Personality</span><span className="font-medium">Professional, Friendly</span></div>

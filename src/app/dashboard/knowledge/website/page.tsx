@@ -27,7 +27,7 @@ export default function WebsiteKnowledgePage(){
           <form onSubmit={handleAdd} className="mt-4 space-y-3">
             <input required type="url" placeholder="https://yourbusiness.com" value={url} onChange={e=>setUrl(e.target.value)} className="w-full h-11 px-4 rounded-[12px] border text-[13px]"/>
             <div className="rounded-[12px] bg-violet-50 border border-violet-200 p-3 text-[11px] text-violet-800"><strong>What we extract:</strong> Product pages, FAQs, policies, about, services, blog (selective). We ignore navigation, footer, duplicate content. Auto-chunk + embed.</div>
-            <button disabled={busy} className="w-full h-11 rounded-full bg-[#0a0a16] text-white text-[13px] font-semibold disabled:opacity-50">{busy? "Crawling & Indexing..." : "Crawl & Index Website"}</button>
+            <button disabled={busy} className="w-full h-11 rounded-full bg-violet-600 text-white text-[13px] font-semibold disabled:opacity-50">{busy? "Crawling & Indexing..." : "Crawl & Index Website"}</button>
           </form>
           <div className="mt-6 space-y-2 text-[12px]">
             <h4 className="font-semibold text-[13px]">Knowledge Sources Supported</h4>

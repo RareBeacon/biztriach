@@ -28,7 +28,7 @@ export default function SalesPage() {
 
   return (
     <div className="space-y-6 animate-fade-in">
-      <div className="flex justify-between items-center"><div><h1 className="font-outfit text-[26px] font-bold">Sales Management</h1><p className="text-[13px] text-slate-500">Every sale updates revenue, profit, inventory, customer history, daily reports automatically.</p></div><button onClick={()=>setShowAdd(true)} className="h-10 px-5 rounded-full bg-[#0a0a16] text-white text-[13px] font-medium flex items-center gap-2"><Plus className="w-4 h-4"/> Record Sale</button></div>
+      <div className="flex justify-between items-center"><div><h1 className="font-outfit text-[26px] font-bold">Sales Management</h1><p className="text-[13px] text-slate-500">Every sale updates revenue, profit, inventory, customer history, daily reports automatically.</p></div><button onClick={()=>setShowAdd(true)} className="h-10 px-5 rounded-full bg-violet-600 text-white text-[13px] font-medium flex items-center gap-2"><Plus className="w-4 h-4"/> Record Sale</button></div>
 
       <div className="grid md:grid-cols-3 gap-4">
         <div className="rounded-[18px] bg-white border p-5"><div className="text-[11px] uppercase tracking-widest font-bold text-slate-400">Total Revenue</div><div className="font-outfit text-[24px] font-bold mt-1">₦{totalRevenue.toLocaleString()}</div><div className="text-[11px] text-emerald-600 mt-2 flex items-center gap-1"><TrendingUp className="w-3 h-3"/> {sales.length} transactions</div></div>
@@ -53,7 +53,7 @@ export default function SalesPage() {
               <input required type="number" placeholder="Unit price ₦" value={form.unitPrice} onChange={e=>setForm({...form,unitPrice:e.target.value})} className="h-11 px-4 rounded-[12px] border text-[13px]"/>
             </div>
             <select value={form.paymentMethod} onChange={e=>setForm({...form,paymentMethod:e.target.value})} className="w-full h-11 px-4 rounded-[12px] border text-[13px]"><option value="cash">Cash</option><option value="transfer">Transfer</option><option value="pos">POS</option><option value="card">Card</option></select>
-            <div className="flex gap-3 pt-2"><button type="button" onClick={()=>setShowAdd(false)} className="flex-1 h-11 rounded-full border text-[13px]">Cancel</button><button type="submit" className="flex-1 h-11 rounded-full bg-[#0a0a16] text-white text-[13px] font-semibold">Save Sale</button></div>
+            <div className="flex gap-3 pt-2"><button type="button" onClick={()=>setShowAdd(false)} className="flex-1 h-11 rounded-full border text-[13px]">Cancel</button><button type="submit" className="flex-1 h-11 rounded-full bg-violet-600 text-white text-[13px] font-semibold">Save Sale</button></div>
           </form>
         </div>
       )}

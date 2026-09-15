@@ -17,7 +17,7 @@ export default function ReportsPage(){
             <div className="rounded-[18px] bg-white border p-5"><div className="text-[11px] uppercase tracking-widest font-bold text-slate-400">Month Revenue</div><div className="font-outfit text-[22px] font-bold mt-1">₦{data.summary.monthRevenue?.toLocaleString()}</div><div className="text-[11px] text-emerald-600 mt-2 flex items-center gap-1"><TrendingUp className="w-3 h-3"/> Based on {data.summary.totalSalesMonth} sales</div></div>
             <div className="rounded-[18px] bg-white border p-5"><div className="text-[11px] uppercase tracking-widest font-bold text-slate-400">Month Profit</div><div className="font-outfit text-[22px] font-bold mt-1">₦{data.summary.monthProfit?.toLocaleString()}</div></div>
             <div className="rounded-[18px] bg-white border p-5"><div className="text-[11px] uppercase tracking-widest font-bold text-slate-400">Inventory Value</div><div className="font-outfit text-[22px] font-bold mt-1">₦{data.summary.inventoryValue?.toLocaleString()}</div></div>
-            <div className="rounded-[18px] bg-[#0a0a16] text-white p-5"><div className="text-[11px] uppercase tracking-widest font-bold text-white/50">AI Insight</div><div className="text-[13px] mt-2 leading-relaxed">{data.insight}</div></div>
+            <div className="rounded-[18px] bg-violet-600 text-white p-5"><div className="text-[11px] uppercase tracking-widest font-bold text-white/50">AI Insight</div><div className="text-[13px] mt-2 leading-relaxed">{data.insight}</div></div>
           </div>
 
           <div className="grid md:grid-cols-2 gap-6">
